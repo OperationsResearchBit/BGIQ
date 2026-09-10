@@ -1,37 +1,35 @@
 import pulp
 
-def optimize_turn(payload):
-    # Extract variables from Google Sheet JSON
-    gold = payload['current_gold']
-    spaces = payload['free_spaces']
-    shop = payload['shop']
-    
-    # Initialize the Optimization Problem
+def optimize_turn(gold, spaces, shop_minions, board_minions):
+    """
+    Solves the optimal combination of buys and sells using an LP Matrix.
+    """
     prob = pulp.LpProblem("Hearthstone_Turn", pulp.LpMaximize)
     
-    # Create Binary Decision Variables (1 = Buy, 0 = Do Not Buy)
-    # Using index as key to handle duplicate minion names in the shop
-    buy_choices = pulp.LpVariable.dicts("Buy", range(len(shop)), cat='Binary')
+    # Define Binary Choice Actions (1 = Execute, 0 = Skip)
+    buy_vars = pulp.LpVariable.dicts("Buy", range(len(shop_minions)), cat='Binary')
+    sell_vars = pulp.LpVariable.dicts("Sell", range(len(board_minions)), cat='Binary')
     
-    # Objective Function: Maximize Total Net Value (Raw Stats + Synergy Buffs)
-    prob += pulp.lpSum([
-        (shop[i]['stats'] + shop[i]['synergy_buff']) * buy_choices[i] 
-        for i in range(len(shop))
-    ])
+    # Objective Function: Maximize expected net value 
+    # (Shop Card Value minus sacrificed Board Card Value)
+    prob += (
+        pulp.lpSum([shop_minions[i]['value'] * buy_vars[i] for i in range(len(shop_minions))]) -
+        pulp.lpSum([board_minions[j]['value'] * sell_vars[j] for j in range(len(board_minions))])
+    )
     
-    # Constraint 1: Gold Limit
-    prob += pulp.lpSum([shop[i]['cost'] * buy_choices[i] for i in range(len(shop))]) <= gold
-    
-    # Constraint 2: Board Space Limit
-    prob += pulp.lpSum([buy_choices[i] for i in range(len(shop))]) <= spaces
-    
-    # Solve the system
+    # Constraints
+    # 1. Gold Limit: Total gold spent cannot exceed current bank + sold card returns
+    prob += (pulp.lpSum([3 * buy_vars[i] for i in range(len(shop_minions))]) <= 
+             gold + pulp.lpSum([1 * sell_vars[j] for j in range(len(board_minions))]))
+             
+    # 2. Board Space Limit: Initial space + freed slots must fit your buys
+    prob += (pulp.lpSum([buy_vars[i] for i in range(len(shop_minions))]) <= 
+             spaces + pulp.lpSum([1 * sell_vars[j] for j in range(len(board_minions))]))
+             
     prob.solve(pulp.PULP_CBC_CMD(msg=False))
     
-    # Extract Results
-    recommendations = []
-    for i in range(len(shop)):
-        if buy_choices[i].varValue == 1:
-            recommendations.append(shop[i]['name'])
-            
-    return {"buy_list": recommendations}
+    # Format Results
+    buys = [shop_minions[i]['name'] for i in range(len(shop_minions)) if buy_vars[i].varValue == 1]
+    sells = [board_minions[j]['name'] for j in range(len(board_minions)) if sell_vars[j].varValue == 1]
+    
+    return {"buys": buys, "sells": sells}
