@@ -11,7 +11,7 @@ Choose between a casual, zero-install **Google Sheets interactive template** or 
 Perfect for players who want to simulate or test complex turn setups without running executable files locally. The mathematical engine runs entirely inside your browser sandbox for free.
 
 ### 🚀 Quick Start Setup Instructions
-1. **Get the Template:** Open the [BGIQ Master Google Sheet Template](https://docs.google.com/spreadsheets/d/1bbX7_2kBLQcj3aORT6YQIjcCQ5Pq7RTUSiCFcRwmkyQ/edit?usp=sharing) (Replace this with your spreadsheet sharing link, ensuring it ends with `/copy`).
+1. **Get the Template:** Open the [BGIQ Master Google Sheet Template](https://docs.google.com/spreadsheets/d/1bbX7_2kBLQcj3aORT6YQIjcCQ5Pq7RTUSiCFcRwmkyQ/copy).
 2. **Authorize the Automation Script:** 
    * Click **BG Solver** ➔ **Optimize Current Turn** in the top menu bar.
    * Google will prompt an authorization alert box. Click *Advanced* ➔ *Go to Untitled project (unsafe)* ➔ *Allow*. This step is safe; it enables the spreadsheet to calculate the matrix locally.
