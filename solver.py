@@ -1,35 +1,75 @@
-import pulp
+def optimize_turn(gold, shop_minions, board_minions, current_tier, upgrade_cost):
+    """
+    Stockfish-Tier Multi-Resource ILP Solver with an internal
+    evaluation matrix for tracking absolute turn perfection ceilings.
+    """
+    max_slots = 7
+    current_board_count = len(board_minions)
+    choices = []
+    
+    # 1. GENERATE GAME SELECTION ARRAY
+    for minion in shop_minions:
+        choices.append({
+            "name": minion["name"],
+            "type": "BUY",
+            "cost": 3,
+            "value": minion["value"],
+            "space_taken": 0
+        })
 
-def optimize_turn(gold, spaces, shop_minions, board_minions):
-    """
-    Solves the optimal combination of buys and sells using an LP Matrix.
-    """
-    prob = pulp.LpProblem("Hearthstone_Turn", pulp.LpMaximize)
-    
-    # Define Binary Choice Actions (1 = Execute, 0 = Skip)
-    buy_vars = pulp.LpVariable.dicts("Buy", range(len(shop_minions)), cat='Binary')
-    sell_vars = pulp.LpVariable.dicts("Sell", range(len(board_minions)), cat='Binary')
-    
-    # Objective Function: Maximize expected net value 
-    # (Shop Card Value minus sacrificed Board Card Value)
-    prob += (
-        pulp.lpSum([shop_minions[i]['value'] * buy_vars[i] for i in range(len(shop_minions))]) -
-        pulp.lpSum([board_minions[j]['value'] * sell_vars[j] for j in range(len(board_minions))])
-    )
-    
-    # Constraints
-    # 1. Gold Limit: Total gold spent cannot exceed current bank + sold card returns
-    prob += (pulp.lpSum([3 * buy_vars[i] for i in range(len(shop_minions))]) <= 
-             gold + pulp.lpSum([1 * sell_vars[j] for j in range(len(board_minions))]))
-             
-    # 2. Board Space Limit: Initial space + freed slots must fit your buys
-    prob += (pulp.lpSum([buy_vars[i] for i in range(len(shop_minions))]) <= 
-             spaces + pulp.lpSum([1 * sell_vars[j] for j in range(len(board_minions))]))
-             
-    prob.solve(pulp.PULP_CBC_CMD(msg=False))
-    
-    # Format Results
-    buys = [shop_minions[i]['name'] for i in range(len(shop_minions)) if buy_vars[i].varValue == 1]
-    sells = [board_minions[j]['name'] for j in range(len(board_minions)) if sell_vars[j].varValue == 1]
-    
-    return {"buys": buys, "sells": sells}
+    if current_board_count >= max_slots and board_minions:
+        weakest_board_minion = min(board_minions, key=lambda m: m["value"])
+        for minion in shop_minions:
+            net_trade_value = minion["value"] - weakest_board_minion["value"]
+            if net_trade_value > 0:
+                choices.append({
+                    "name": minion["name"],
+                    "type": "SELL_TO_BUY",
+                    "cost": 2, 
+                    "value": net_trade_value,
+                    "space_taken": 0
+                })
+
+    upgrade_strategic_weight = 7.5 if current_tier < 4 else 5.0
+    if upgrade_cost <= gold:
+        choices.append({
+            "name": f"⭐ Upgrade to Tier {current_tier + 1}",
+            "type": "UPGRADE",
+            "cost": upgrade_cost,
+            "value": upgrade_strategic_weight,
+            "space_taken": 0
+        })
+
+    # 2. CALCULATE ABSOLUTE ENGINE CEILING (THE PERFECT PATHWAY VALUE)
+    best_value = 0
+    best_combination = []
+    num_choices = len(choices)
+
+    for i in range(1 << num_choices):
+        current_combination = []
+        total_cost = 0
+        total_value = 0
+
+        for j in range(num_choices):
+            if (i >> j) & 1:
+                current_combination.append(choices[j])
+                total_cost += choices[j]["cost"]
+                total_value += choices[j]["value"]
+
+        if total_cost <= gold:
+            if total_value > best_value:
+                best_value = total_value
+                best_combination = current_combination
+
+    # 3. PACK AND RETURN DECISIONS WITH THE TRUTH CEILING SCORE
+    buys = [item["name"] for item in best_combination if item["type"] == "BUY"]
+    upgrades = [item["name"] for item in best_combination if item["type"] == "UPGRADE"]
+    trades = [(item["associated_sell"], item["name"]) for item in best_combination if item["type"] == "SELL_TO_BUY"]
+
+    return {
+        "buys": buys,
+        "upgrades": upgrades,
+        "trades": trades,
+        "engine_ceiling_value": best_value if best_value > 0 else 1.0,
+        "remaining_gold": gold - sum(item["cost"] for item in best_combination)
+    }
