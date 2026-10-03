@@ -22,12 +22,14 @@ import re
 import shlex
 import sys
 import urllib.request
+from collections import Counter
 from pathlib import Path
+
+import bgui
 
 URL = "https://api.hearthstonejson.com/v1/latest/enUS/cards.json"
 CACHE = Path.home() / ".cache" / "bgminions" / "cards.json"
 
-TIER_COLORS = {1: "37", 2: "32", 3: "36", 4: "34", 5: "35", 6: "33"}  # ANSI
 
 
 def load_cards(file=None, refresh=False):
@@ -96,28 +98,23 @@ def filter_minions(minions, tier, race, search):
     return out
 
 
-def color(s, code, enabled):
-    return f"\033[{code}m{s}\033[0m" if enabled else s
-
-
 def print_minions(minions, use_color):
+    bgui.set_enabled(use_color)
     if not minions:
         print("No minions matched.")
         return
-    width = max(len(m["name"]) for m in minions) + 2
+    counts = Counter(m["tier"] for m in minions)
     current = None
     for m in minions:
         if m["tier"] != current:
             current = m["tier"]
-            header = f"=== Tavern Tier {current} ==="
-            print("\n" + color(header, TIER_COLORS.get(current, "37") + ";1", use_color))
-        stats = f"{m['attack']}/{m['health']}"
-        races = "/".join(m["races"])
-        name = color(m["name"].ljust(width), "1", use_color)
-        print(f"{name}{stats:>7}  [{races}]")
-        if m["text"]:
-            print(f"    {m['text']}")
-    print(f"\n{len(minions)} minion(s).")
+            print()
+            print(bgui.header(f"TAVERN TIER {current}", counts[current],
+                              bgui.TIER_FG.get(current, "1;37")))
+        for line in bgui.minion_lines(m["name"], m["attack"], m["health"],
+                                      m["tier"], m["races"], m["text"]):
+            print(line)
+    print("\n" + bgui.c(f"{len(minions)} minion(s).", "90"))
 
 
 def interactive(minions, use_color):
@@ -164,6 +161,10 @@ def main():
     p.add_argument("--refresh", action="store_true", help="re-download card data")
     p.add_argument("--no-color", action="store_true", help="disable ANSI colors")
     args = p.parse_args()
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
     try:
         cards = load_cards(args.file, args.refresh)

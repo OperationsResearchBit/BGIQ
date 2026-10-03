@@ -6,8 +6,11 @@ Two small terminal tools for Hearthstone Battlegrounds. Both use only the Python
 |---|---|
 | `bgminions.py` | Browse every Battlegrounds minion (name, tier, stats, type, card text). Filter and search. |
 | `bgtrack.py` | Live tracker. Reads Hearthstone's log while you play and shows the tavern, your board and your hand. |
+| `bgui.py` | Shared colors and layout used by both tools. Nothing to run. |
 
-Keep both files in the same folder. `bgtrack.py` uses the card loading code in `bgminions.py`.
+Keep all the files in the same folder. `bgtrack.py` uses the card loading code in `bgminions.py`, and both use `bgui.py` for colors.
+
+The tools use colors, box lines and a colored badge for each tavern tier (T1 to T7). They look best in **Windows Terminal** or any modern terminal. If colors look wrong or you prefer plain text, add `--no-color` or set the `NO_COLOR` environment variable.
 
 ## Requirements
 
@@ -113,6 +116,7 @@ python bgtrack.py --logs-dir "D:\Games\Hearthstone\Logs"
 |---|---|
 | `--log PATH` | Read one specific `Power.log` (no automatic switching) |
 | `--logs-dir PATH` | Hearthstone's `Logs` folder, if it is not in the default location |
+| `--no-color` | Turn off colors |
 
 Default log folders: `C:\Program Files (x86)\Hearthstone\Logs` on Windows, `/Applications/Hearthstone/Logs` on macOS.
 

@@ -17,6 +17,7 @@ import re
 import sys
 import time
 
+import bgui as ui
 from bgminions import load_cards, clean_text
 
 RE_CREATE = re.compile(r"FULL_ENTITY - Creating ID=(\d+) CardID=(\S*)")
@@ -127,46 +128,62 @@ class State:
 def describe(e, by_id):
     c = by_id.get(e["card"])
     if not c:
-        return f"? {e['card'] or 'unknown'}", ""
+        return None
     t = e["tags"]
-    atk = t.get("ATK", c.get("attack", "?"))
-    hp = t.get("HEALTH", c.get("health", "?"))
-    golden = t.get("PREMIUM") == "1" or "battlegroundsNormalDbfId" in c
     races = c.get("races") or ([c["race"]] if c.get("race") else [])
-    races = "/".join(r.title().replace("_", " ") for r in races) or "Neutral"
-    head = (f"{'Golden ' if golden else ''}{c.get('name', '?')}  {atk}/{hp}"
-            f"  T{c.get('techLevel', '?')}  [{races}]")
-    return head, clean_text(c.get("text"))
+    return {
+        "name": c.get("name", "?"),
+        "atk": t.get("ATK", c.get("attack", "?")),
+        "hp": t.get("HEALTH", c.get("health", "?")),
+        "tier": c.get("techLevel", "?"),
+        "races": [r.title().replace("_", " ") for r in races] or ["Neutral"],
+        "text": clean_text(c.get("text")),
+        "golden": t.get("PREMIUM") == "1" or "battlegroundsNormalDbfId" in c,
+    }
 
 
-def section(title, ents, by_id):
-    lines = [f"== {title} ({len(ents)}) =="]
+def section(title, ents, by_id, color):
+    lines = [ui.header(title, len(ents), color)]
+    if not ents:
+        lines.append(ui.c("  (empty)", "90"))
     for n, e in enumerate(ents, 1):
-        head, text = describe(e, by_id)
-        lines.append(f"{n}. {head}")
-        if text:
-            lines.append(f"     {text}")
+        d = describe(e, by_id)
+        if d is None:
+            lines.append(f"{n:>2}  " + ui.c(f"? {e['card'] or 'unknown card'}", "91"))
+        else:
+            lines += ui.minion_lines(num=n, **d)
     return lines
 
 
 def render(st, by_id):
     bob = st.controller_of("TB_BaconShopBob")
     me = st.controller_of("TB_BaconShop_8P_PlayerE")
-    lines = []
-    lines += section("Tavern (Bob)", st.minions(bob, "PLAY", by_id), by_id)
-    lines += [""] + section("Your board", st.minions(me, "PLAY", by_id), by_id)
-    lines += [""] + section("Your hand", st.minions(me, "HAND", by_id), by_id)
-    lines += ["", f"[debug] entities={len(st.ents)} bob_ctrl={bob} you_ctrl={me}",
-              "(During combat the tavern section shows the enemy board.)  Ctrl+C to quit."]
+    lines = [ui.banner("BATTLEGROUNDS TRACKER"), ""]
+    lines += section("TAVERN", st.minions(bob, "PLAY", by_id), by_id, "1;93")
+    lines += [""] + section("YOUR BOARD", st.minions(me, "PLAY", by_id), by_id, "1;92")
+    lines += [""] + section("YOUR HAND", st.minions(me, "HAND", by_id), by_id, "1;96")
+    counts = {}
+    for e in st.ents.values():
+        tg = e["tags"]
+        if tg.get("ZONE") == "PLAY" and by_id.get(e["card"], {}).get("type") == "MINION":
+            k = tg.get("CONTROLLER", "?")
+            counts[k] = counts.get(k, 0) + 1
+    play = " ".join(f"{k}:{v}" for k, v in sorted(counts.items()))
+    lines += ["",
+              ui.c(f"entities={len(st.ents)} bob_ctrl={bob} you_ctrl={me}", "90"),
+              ui.c(f"minions in play by controller -> {play or 'none'}", "90"),
+              ui.c("Ctrl+C to quit", "90")]
     return "\n".join(lines)
 
 
 def main():
     ap = argparse.ArgumentParser(description="Live Battlegrounds tracker.")
     ap.add_argument("--log", help="path to Power.log (default: newest one found)")
+    ap.add_argument("--no-color", action="store_true", help="turn off colors")
     ap.add_argument("--logs-dir", default=default_logs_dir(),
                     help="Hearthstone Logs folder")
     args = ap.parse_args()
+    ui.set_enabled(not args.no_color)
 
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -179,23 +196,28 @@ def main():
         sys.exit("Couldn't find Power.log. Use --log PATH or --logs-dir PATH.")
 
     st = State()
-    f = open(path, "r", encoding="utf-8", errors="replace")
-    print(f"Reading {path}")
-    last_shown, last_check = None, time.time()
+    f = open(path, "rb")
+    sys.stdout.write("\033[2J\033[H")
+    print(f"Reading {path} (catching up, big logs can take a few seconds)...")
+    last_shown, last_check, count = None, time.time(), 0
     try:
         while True:
             pos = f.tell()
             line = f.readline()
-            if line and not line.endswith("\n"):
+            if line and not line.endswith(b"\n"):
                 f.seek(pos)  # half-written line, try again shortly
-                line = ""
+                line = b""
             if line:
-                st.feed(line)
+                st.feed(line.decode("utf-8", "replace"))
+                count += 1
+                if count % 200000 == 0:
+                    print(f"  ...{count:,} lines", flush=True)
                 continue
             text = render(st, by_id)
             if text != last_shown:
-                os.system("cls" if os.name == "nt" else "clear")
-                print(text)
+                body = text.replace("\n", "\033[K\n")
+                sys.stdout.write("\033[H" + body + "\033[K\n\033[J")
+                sys.stdout.flush()
                 last_shown = text
             if not args.log and time.time() - last_check > 3:
                 last_check = time.time()
@@ -203,7 +225,7 @@ def main():
                 if new and new != path:
                     path = new
                     f.close()
-                    f = open(path, "r", encoding="utf-8", errors="replace")
+                    f = open(path, "rb")
                     st.reset()
             time.sleep(0.3)
     except KeyboardInterrupt:
