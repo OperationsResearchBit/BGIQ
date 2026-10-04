@@ -28,7 +28,8 @@ Imports point inward only. `core` imports nothing from the rest of the package.
 | `file_adapters` | `core` | reading the game log, card data, saving your history and triple targets |
 | `ui` | `core` | styling (`bgui.py`), screen pieces (`components\`), window fitting (`layout.py`), experiments (`sandbox\`) |
 | `modes` | `core`, `analysis`, `ui` | what the tool does: live tracker, game review, minion browser, triple-target editor |
-| `__main__.py`, `menu.py` | everything | the entry point; the only place adapters are connected to modes |
+| `commands` | `core`, `analysis`, `file_adapters`, `ui`, `modes` | extra commands, one `cmd_<name>.py` file each, found automatically |
+| `__main__.py`, `menu.py` | everything | the entry point and the menu. Adapters are connected to modes here and in `commands\` |
 
 `build_and_test\tests\test_architecture.py` checks this on every test run, so the rule cannot drift.
 
@@ -93,6 +94,7 @@ Differences from the plan:
 - **`domain.py`, not `types.py`.** A file called `types.py` can shadow Python's standard `types` module when scripts run from its folder, which causes confusing import errors.
 - **`core` and `modes` instead of one `app` folder.** `domain.py` and `ports.py` are the innermost layer; the things the tool does sit above them and use `analysis`. Two folders keep the rule readable from the names.
 - **`file_adapters`.** Each file implements a contract from `core\ports.py` and touches files, folders or the network.
+- **`commands`.** The registry (`registry.py`) plus optional `cmd_*.py` files. It sits above `modes` because a command connects adapters to a mode. `core\discovery.py` is the small helper that imports `rule_*.py` and `cmd_*.py` files.
 - **`modes`.** Each file is something you can run: track a live game, review finished games, browse minions, edit triple targets.
 - **`ui\sandbox`.** A staging area for new screen pieces, not a plugin system. Build a piece there, preview it with `python -m bgtools demo`, then move its file to `ui\components\` when it is ready.
 - **`bgui.py` stays low-level.** Colors, banner, header, badges, wrapping, and the named style tokens. Screen pieces live in `components\` so this file does not grow into a 600-line catch-all.
@@ -100,12 +102,15 @@ Differences from the plan:
 
 ## Adding things
 
-- **A new screen piece:** write `def my_piece(snap: Snapshot) -> list[str]` in `ui\sandbox\`, preview it with the demo runner, then move it to `ui\components\` and add it to `REGISTRY`.
-- **A new advice rule:** add a function in `analysis\recommender\` that reads the `Profile` and returns plain data (`Mark`). The UI decides how to color it.
-- **A new data source** (for example a local server): add a class in `file_adapters\` that satisfies the matching contract in `core\ports.py`, and connect it in `__main__.py`. No other file changes.
-- **A new mode:** add a file in `modes\` that takes its adapters as arguments, then add a command in `__main__.py`.
+Build new ideas in `build_and_test\lab\<idea>\`, in folders that mirror `bgtools\`. `lab.py check` runs the tests and the layer rules, and `lab.py promote` copies the files into the app. See `build_and_test\lab\README.md`.
+
+- **A new advice rule:** add `analysis\recommender\rule_<name>.py` and decorate the function with `@rule`. It takes `(minion, main_type, targets)` and returns a `Mark` or `None`. Files named `rule_*.py` are imported automatically after `rules.py`, in name order; that order is the priority. The UI decides how to color the result.
+- **A new command or mode:** add a file in `modes\` that takes its adapters as arguments, then add `commands\cmd_<name>.py` with `@command("name", "help text", configure, menu="Menu label")`. Files named `cmd_*.py` are imported automatically, the parser is built from the registry, and `menu=` adds a numbered menu item. Nothing else changes.
+- **A new screen piece:** write `def my_piece(snap: Snapshot) -> list[str]` in `ui\sandbox\`, preview it with `python -m bgtools demo`, then move it to `ui\components\` and add it to `REGISTRY`.
+- **A new data source** (for example a local server): add a class in `file_adapters\` that satisfies the matching contract in `core\ports.py`, and connect it in `__main__.py`.
+- **Tests:** add a golden-screen test for any change to what the screen shows. See `build_and_test\tests\test_golden_screens.py`.
 
 ## Known gaps
 
 - `modes\game_review.py` saves finished games and compares each with your earlier ones. A screen that ranks your past boards is not built yet (see the changelog's "Not yet built" list).
-- The log parsing in `core\game_state.py` was written against a log format as understood and tested on a made-up log only (see "Known limits" in the changelog).
+- The log parsing in `core\game_state.py` has been checked against real games by the maintainer and reads correctly. The automated tests still use a made-up log (real logs contain battletags and are not committed), so after a parsing change, also run `track --replay` on a real log.

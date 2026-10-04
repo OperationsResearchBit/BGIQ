@@ -212,7 +212,7 @@ With `--debug`, the last lines show:
 
 ## Known limits
 
-The v2 additions read tags from `Power.log` that were written from the log format as I understand it, and they have not all been checked against a real game:
+The v2 additions read tags from `Power.log`. They have been checked against real games and read correctly. How each value is worked out, and how to compare it with the game (use `--debug`):
 
 - **Turn number:** shown as the game's turn counter divided by two (rounded up). Compare it with the in-game turn using `--debug`.
 - **Gold:** shown as current/total from the resource tags.
