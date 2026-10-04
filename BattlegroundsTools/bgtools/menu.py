@@ -3,7 +3,7 @@
 """The numbered menu. It only shows choices and calls the functions it is given."""
 
 import os
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Sequence, Tuple
 
 Action = Callable[[], None]
 
@@ -40,11 +40,12 @@ def _run_guarded(action: Action) -> None:
             print(e.code)
 
 
-def run_menu(actions: Dict[str, Action]) -> None:
+def run_menu(actions: Dict[str, Action], extra: Sequence[Tuple[str, str, str]] = ()) -> None:
+    items = list(ITEMS) + list(extra)
     while True:
         _clear()
         print("\n".join(TITLE) + "\n")
-        for key, label, _ in ITEMS:
+        for key, label, _ in items:
             print(f"  {key}. {label}")
         print("  Q. Quit\n")
         print("  Tip: Ctrl+C stops the tracker and brings you back to this menu.\n")
@@ -55,7 +56,7 @@ def run_menu(actions: Dict[str, Action]) -> None:
             return
         if choice == "q":
             return
-        for key, _, name in ITEMS:
+        for key, _, name in items:
             if choice == key and name in actions:
                 _clear()
                 _run_guarded(actions[name])

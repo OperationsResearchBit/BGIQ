@@ -2,6 +2,15 @@
 # Copyright (C) 2026 bgtools contributors
 """Advice rules. Each rule reads the board Profile and returns plain data."""
 
-from bgtools.analysis.recommender.rules import pick_marks
+from bgtools.analysis.recommender.rules import RULES, pick_marks, rule
+from bgtools.core.discovery import import_matching
 
-__all__ = ["pick_marks"]
+
+def discover():
+    """Import every rule_<name>.py in this folder; each registers its rules with @rule."""
+    return import_matching(__name__, "rule_")
+
+
+discover()
+
+__all__ = ["RULES", "discover", "pick_marks", "rule"]
