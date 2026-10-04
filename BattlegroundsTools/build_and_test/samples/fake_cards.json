@@ -1,0 +1,117 @@
+[
+ {
+  "id": "T_CAT",
+  "name": "Alley Cat",
+  "type": "MINION",
+  "techLevel": 1,
+  "attack": 1,
+  "health": 1,
+  "battlegroundsPremiumDbfId": 1,
+  "text": "",
+  "races": [
+   "BEAST"
+  ]
+ },
+ {
+  "id": "T_BEAR",
+  "name": "Mama Bear",
+  "type": "MINION",
+  "techLevel": 5,
+  "attack": 4,
+  "health": 4,
+  "battlegroundsPremiumDbfId": 1,
+  "text": "Give <b>+4/+4</b> to Beasts.",
+  "races": [
+   "BEAST"
+  ]
+ },
+ {
+  "id": "T_LEADER",
+  "name": "Pack Leader",
+  "type": "MINION",
+  "techLevel": 3,
+  "attack": 3,
+  "health": 3,
+  "battlegroundsPremiumDbfId": 1,
+  "text": "",
+  "races": [
+   "BEAST"
+  ]
+ },
+ {
+  "id": "T_WEAVER",
+  "name": "Wrath Weaver",
+  "type": "MINION",
+  "techLevel": 1,
+  "attack": 1,
+  "health": 3,
+  "battlegroundsPremiumDbfId": 1,
+  "text": "",
+  "races": [
+   "DEMON"
+  ]
+ },
+ {
+  "id": "T_MECH",
+  "name": "Micro Machine",
+  "type": "MINION",
+  "techLevel": 1,
+  "attack": 1,
+  "health": 2,
+  "battlegroundsPremiumDbfId": 1,
+  "text": "",
+  "races": [
+   "MECHANICAL"
+  ]
+ },
+ {
+  "id": "T_ALL",
+  "name": "Amalgam",
+  "type": "MINION",
+  "techLevel": 1,
+  "attack": 1,
+  "health": 2,
+  "battlegroundsPremiumDbfId": 1,
+  "text": "",
+  "races": [
+   "ALL"
+  ]
+ },
+ {
+  "id": "T_PLAIN",
+  "name": "Plain Guy",
+  "type": "MINION",
+  "techLevel": 2,
+  "attack": 2,
+  "health": 2,
+  "battlegroundsPremiumDbfId": 1,
+  "text": ""
+ },
+ {
+  "id": "T_GOLD",
+  "name": "Golden Alley Cat",
+  "type": "MINION",
+  "techLevel": 1,
+  "attack": 2,
+  "health": 2,
+  "races": [
+   "BEAST"
+  ],
+  "battlegroundsNormalDbfId": 1,
+  "battlegroundsPremiumDbfId": 1
+ },
+ {
+  "id": "T_SPELL",
+  "name": "Not A Minion",
+  "type": "SPELL"
+ },
+ {
+  "id": "T_TEMPLATE",
+  "name": "[BGTEMPLATE] Dummy",
+  "type": "MINION",
+  "techLevel": 1,
+  "attack": 1,
+  "health": 1,
+  "battlegroundsPremiumDbfId": 1
+ }
+]

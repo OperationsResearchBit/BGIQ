@@ -1,0 +1,19 @@
+[project]
+name = "bgtools"
+version = "2.1.0"
+description = "Terminal tracker and minion browser for Hearthstone Battlegrounds."
+readme = "README.md"
+requires-python = ">=3.8"
+license = "AGPL-3.0-or-later"
+license-files = ["docs/LICENSE"]
+dependencies = []   # standard library only
+
+[project.scripts]
+bgtools = "bgtools.__main__:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["build_and_test/tests"]
+
+[tool.ruff]
+line-length = 100

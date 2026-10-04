@@ -1,0 +1,1 @@
+python -c "import zipfile,pathlib; skip={'build','release','.git','__pycache__','data','samples'}; ok={'.py','.md','.bat','.toml','.txt','.yml'}; z=zipfile.ZipFile('bgtools_src.zip','w',zipfile.ZIP_DEFLATED); [z.write(p, p.as_posix()) for p in pathlib.Path('.').rglob('*') if p.is_file() and not (set(p.parts)&skip) and p.suffix in ok]; z.close()"
