@@ -11,9 +11,5 @@ dependencies = []   # standard library only
 [project.scripts]
 bgtools = "bgtools.__main__:main"
 
-[tool.pytest.ini_options]
-pythonpath = ["."]
-testpaths = ["build_and_test/tests"]
-
 [tool.ruff]
 line-length = 100

@@ -6,6 +6,10 @@ Terminal tools for Hearthstone Battlegrounds. Everything uses only the Python st
 |---|---|
 | `python -m bgtools` | Opens the menu (the same menu `run_bgtools.bat` shows). |
 | `python -m bgtools track` | Live tracker. Reads Hearthstone's log while you play and shows your status, board type, the tavern, your board and your hand. Summarizes each finished game. |
+| `python -m bgtools simpreview` | Only the fight odds from your real game: two lines, `my lethal / win / tie / loss / opp lethal`. Double-click `simpreview.bat`. See [Fight odds](#fight-odds). |
+| `python -m bgtools combatsim` | Type two boards and get win / tie / loss, no game needed. |
+| `python -m bgtools comps` | Checks your `data\comps.txt` against the game's card names. |
+| `python -m bgtools stats` | Your results from saved games: average placement, top-4 rate, recent form, placements by build, cold-streak warning. |
 | `python -m bgtools minions` | Browse every Battlegrounds minion (name, tier, stats, type, card text). Filter and search. |
 | `python -m bgtools targets` | Search minions and add them to your triple-target list. |
 | `python -m bgtools demo` | Draw the tracker screen from made-up data (for working on the UI). |
@@ -16,17 +20,16 @@ The tools use colors, box lines and a colored badge for each tavern tier (T1 to 
 
 ```
 bgtools\
-  README.md   run_bgtools.bat
+  README.md   run_bgtools.bat   simpreview.bat
   pyproject.toml   .gitignore
   docs\          LICENSE   CHANGELOG.md   ARCHITECTURE.md
   data\          triple_targets.txt (yours)   history.json (created by the tracker)
-  build_and_test\   build_exe.bat   tests\   samples\   build\   release\
-  bgtools\       the program (see docs\ARCHITECTURE.md)
+  bgtools\       the program (see docs\ARCHITECTURE.md); bgtools\simcore is the fight calculator
 ```
 
 Your own files live in `data\`. If you run the `.exe`, `data\` sits next to it. Set the `BGTOOLS_DATA_DIR` environment variable to keep them somewhere else.
 
-License: [AGPL-3.0](docs/LICENSE). Changes by version: [CHANGELOG](docs/CHANGELOG.md). How the code is organized: [ARCHITECTURE](docs/ARCHITECTURE.md). Building the `.exe` and running tests: [build_and_test/README.md](build_and_test/README.md).
+License: [AGPL-3.0](docs/LICENSE). Changes by version: [CHANGELOG](docs/CHANGELOG.md). How the code is organized: [ARCHITECTURE](docs/ARCHITECTURE.md).
 
 ## Easiest way: the launcher
 
@@ -127,6 +130,19 @@ python -m bgtools track
 
 The screen redraws as the game changes. Press **Ctrl+C** to stop. You do not need to restart it between games. It switches to the newest log automatically.
 
+### data\comps.txt
+
+Builds you want to play, one per line: `Comp name | Tribe | Core card, Core card, Core card | note`. The tracker shows your two closest comps and marks tavern minions that are a missing core card. A file with example lines in comments is created the first time you run the tracker. Card names must match the game's names (run `python -m bgtools comps` to check). Keep it current after each patch; the tool does not know which comps are strong.
+
+### What the screen shows (new in this version)
+
+- `You: 27 hp · place 3/8   Next: <hero> (19 hp)` appears when your health can be read. Yellow at 20 or less, red at 10 or less.
+- `Lobby: ...` lists the minion types in this game. It is certain after five types have shown up in a tavern; before that, `Lobby so far (n/5)` and `Probably out`.
+- `Comp: <name> 2/3  in tavern now: ...` shows how close you are to a comp from `comps.txt`.
+
+- The status line draws your tavern tier and gold as bars. `(behind)`, `(on pace)` or `(ahead)` compares your tier with a typical range for the turn. It is a guide, not a rule.
+- `Pairs (one more = golden)` lists cards you hold two copies of. A tavern minion that completes one is marked `completes a triple`.
+
 ### What the screen shows
 
 ```
@@ -209,6 +225,25 @@ With `--debug`, the last lines show:
 - `bob_ctrl` and `you_ctrl`: the player IDs the tracker found for the shop and for you, and how many minions are in play per player ID. If a section is empty when it shouldn't be, these help show why.
 - the raw `TURN`, `TECH`, `RES`, `USED` and `TEMP` values behind the status line, and the player entity found.
 - how many games are saved, how many turn samples this game has, and whether the game has been marked complete.
+- `combat odds:` the game step and what the fight estimate has seen so far (see [Fight odds](#fight-odds)).
+
+## Fight odds
+
+During combat the tracker shows `Estimate: win % tie % loss %` under your hero line, and `Last fight: ...` through the next shop phase. It plays the two boards against each other with the keywords `taunt`, Divine Shield, venomous, reborn and windfury. Small fights are calculated exactly; bigger ones are simulated.
+
+- **`python -m bgtools simpreview`** (or double-click `simpreview.bat`) follows the game like `track` but draws only two lines, and saves nothing of yours:
+
+  ```
+  waiting for a fight...   (Ctrl+C to stop)
+  my lethal 0%   win 0%   tie 0%   loss 0%   opp lethal 0%
+  ```
+
+  A real fight fills in win, tie and loss. Lethal (damage to a hero) is not calculated yet, so it shows `--`. Options: `--log`, `--logs-dir`, `--replay`, `--cards-file`, `--debug`.
+- **`python -m bgtools combatsim --you "5/5 taunt, 3/2 shield" --opp "4/4, 2/2 venom"`** works out a fight between two boards you type in. Keywords: `taunt`, `shield` (`ds`), `venom`, `reborn`, `windfury` (`wf`), `effect`. Add `--brief` for just the likeliest result.
+- **`--debug`** on `track` or `simpreview` also writes `data\combat_odds_log.txt`: one line each time a fight's game steps, board sizes or estimate change. It is there to find out why a fight got no estimate.
+- The calculator is the `bgtools\simcore` folder. It uses only the standard library and imports nothing from the rest of the app.
+
+Limits: card effects (deathrattles, start of combat, buffs) are not modeled; the screen says how many minions have one. The estimate is only made at the log's `MAIN_START` step, and that timing has not been confirmed on a real game yet.
 
 ## Known limits
 
