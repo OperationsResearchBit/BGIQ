@@ -24,14 +24,14 @@ Imports point inward only. `core` imports nothing from the rest of the package.
 | Folder | May import from | What it holds |
 |---|---|---|
 | `core` | standard library only | data types, the contracts (`ports.py`), the log-driven game state, file locations |
-| `analysis` | `core` | board strength, board type, advice rules, minion search |
+| `simcore` | standard library only | the fight calculator: win / tie / loss for two boards, no other bgtools code |
+| `analysis` | `core`, `simcore` | board strength, board type, advice rules, minion search |
 | `file_adapters` | `core` | reading the game log, card data, saving your history and triple targets |
 | `ui` | `core` | styling (`bgui.py`), screen pieces (`components\`), window fitting (`layout.py`), experiments (`sandbox\`) |
 | `modes` | `core`, `analysis`, `ui` | what the tool does: live tracker, game review, minion browser, triple-target editor |
-| `commands` | `core`, `analysis`, `file_adapters`, `ui`, `modes` | extra commands, one `cmd_<name>.py` file each, found automatically |
+| `commands` | `core`, `analysis`, `file_adapters`, `ui`, `modes`, `simcore` | extra commands, one `cmd_<name>.py` file each, found automatically |
 | `__main__.py`, `menu.py` | everything | the entry point and the menu. Adapters are connected to modes here and in `commands\` |
 
-`build_and_test\tests\test_architecture.py` checks this on every test run, so the rule cannot drift.
 
 ## How a frame gets on screen
 
@@ -102,13 +102,10 @@ Differences from the plan:
 
 ## Adding things
 
-Build new ideas in `build_and_test\lab\<idea>\`, in folders that mirror `bgtools\`. `lab.py check` runs the tests and the layer rules, and `lab.py promote` copies the files into the app. See `build_and_test\lab\README.md`.
-
 - **A new advice rule:** add `analysis\recommender\rule_<name>.py` and decorate the function with `@rule`. It takes `(minion, main_type, targets)` and returns a `Mark` or `None`. Files named `rule_*.py` are imported automatically after `rules.py`, in name order; that order is the priority. The UI decides how to color the result.
 - **A new command or mode:** add a file in `modes\` that takes its adapters as arguments, then add `commands\cmd_<name>.py` with `@command("name", "help text", configure, menu="Menu label")`. Files named `cmd_*.py` are imported automatically, the parser is built from the registry, and `menu=` adds a numbered menu item. Nothing else changes.
 - **A new screen piece:** write `def my_piece(snap: Snapshot) -> list[str]` in `ui\sandbox\`, preview it with `python -m bgtools demo`, then move it to `ui\components\` and add it to `REGISTRY`.
 - **A new data source** (for example a local server): add a class in `file_adapters\` that satisfies the matching contract in `core\ports.py`, and connect it in `__main__.py`.
-- **Tests:** add a golden-screen test for any change to what the screen shows. See `build_and_test\tests\test_golden_screens.py`.
 
 ## Known gaps
 

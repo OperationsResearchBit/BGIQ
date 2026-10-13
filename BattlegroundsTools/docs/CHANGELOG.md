@@ -4,7 +4,49 @@ All notable changes to Battlegrounds Tools (v2). The baseline is the original `b
 
 ## Unreleased
 
-Developer changes only. The screens and results are the same as v2.1.0 (checked with the golden-screen tests against the old code).
+### Added: fight odds
+
+- **Estimate line in the tracker.** During combat: `Estimate: win % tie % loss %`. Through the next shop phase: `Last fight: ...`. Card effects are not modeled and the screen says how many minions have one.
+- **`python -m bgtools simpreview`** and `simpreview.bat`: only the odds, from your real game, as `my lethal / win / tie / loss / opp lethal`. Lethal (damage to a hero) is not calculated yet and shows `--`. It saves nothing of yours.
+- **`python -m bgtools combatsim`**: win / tie / loss for two boards you type in.
+- **`bgtools\simcore`**: the fight calculator (exact for small fights, simulated otherwise). Standard library only; `analysis` and `commands` may import it (see ARCHITECTURE).
+- `--debug` also writes `data\combat_odds_log.txt` when a fight's steps, board sizes or estimate change.
+- The status label is `loss` everywhere (it was `lose` in the first version of the estimate line).
+
+### Needs a real-log check (fight odds)
+
+- The estimate is made only at the log step `MAIN_START`. A replay of a finished game showed no combat, so this has not been confirmed on a real fight. Use `track --debug` or `simpreview --debug` in a game and read `data\combat_odds_log.txt`.
+
+### Added: scouting (second batch)
+
+- **Lobby line.** Shows which minion types are in this game, worked out from the shop minions you have seen. After five types it is certain and the rest are listed as `Out`; before that, types still unseen after 20 typed minions are shown as `Probably out`.
+- **Hero line.** Your health (with armor) and place, and the hero you fight next with its health. It only appears when your health can be read.
+- **Comps.** `data\comps.txt` holds the builds you want to play (`Comp name | Tribe | Core, Core, Core | note`). The tracker shows your two closest comps (core cards held, what is missing, what is in the tavern now) and marks missing core cards in the tavern with `core for <comp>`. `python -m bgtools comps` checks the card names against the game.
+- Advice rules take a fifth argument, `needs`: `rule(minion, main, targets, pairs, needs)`.
+
+### Needs a real-log check (second batch)
+
+- Lobby: assumes shop minions stay in the log after a reroll and that a lobby has five types (`LOBBY_TYPES`).
+- Hero line: reads the tags `HEALTH`, `DAMAGE`, `ARMOR`, `NEXT_OPPONENT_PLAYER_ID` and the opponent hero's `PLAYER_ID`. Run `track --debug` in a game and compare the `hero=` and `next_opp=` footer lines with the screen.
+
+### Added (player-facing)
+
+- **`python -m bgtools stats`** (also menu item "My stats"): average placement, top-4 / win / 7th-8th rates, recent form, a placement chart, results by the main type of your final board, and a short read-out. It warns about a cold streak (last 5 games well below your average).
+- **Pair and triple alerts in the tracker.** A "Pairs (one more = golden)" line lists cards you hold two copies of (board and hand). A tavern minion that completes one is marked `completes a triple` and ranks above every other mark.
+- **Tavern pace.** The status line now shows tier and gold as bars, and `(behind)`, `(on pace)` or `(ahead)` against a typical tier-by-turn range (`analysis\tempo.py`). It is a rough guide: greedy and tempo plays leave the range on purpose.
+- Finished games now save the main type of the final board (`build` in `history.json`). Older games have no build and are left out of the by-build table.
+
+### Changed
+
+- Advice rules now take a fourth argument, `pairs`: `rule(minion, main, targets, pairs)`.
+- The `pairs` lab idea was promoted to `analysis\pairs.py`.
+- Golden screens were regenerated for the new status line and pairs line.
+
+### Needs a real-log check
+
+The new `build` value reads the types of your board in `core\game_state.py` (`sample_board`). It uses the same entities the board total already uses, but the tests only use the made-up log. Run `track --replay REAL_LOG --debug` once and play a game to confirm `history.json` gets a sensible `build`.
+
+### Developer changes
 
 ### Added
 
@@ -27,7 +69,8 @@ Developer changes only. The screens and results are the same as v2.1.0 (checked 
 
 - **`Snapshot.extras`, for when there is an art-heavy UI.** Today every screen piece is drawn by the terminal, and a piece that needs derived data may call `analysis` directly (the plan is to let `ui` import `analysis`). If a second, graphical UI is built, derived data should move out of the UI: `Snapshot` gets `extras: Dict[str, object]`, filled once in `modes\live_tracker.build_snapshot` by small functions in `analysis\` (one per key, for example `extras["pairs"]`), and every UI reads the same values. The terminal and the art UI then cannot disagree, the same reason the board type is computed once.
 - **Keep the move cheap.** When a piece in `ui\components\` needs derived data, put that one analysis call in a single small helper at the top of its file. Moving it into an extras entry later is then a cut and paste, not a rewrite. Lab ideas that add a component follow the same habit, so the data they need accumulates in one findable place per piece.
-- **Not decided:** whether extras stay a plain dictionary (easy to add to, typos not caught) or become typed fields. Decide when the second UI exists.
+- **Decided: typed fields, not a loose dictionary.** Each new value is a named field on `Snapshot` with a default (for example `pairs: Tuple[Tuple[str, int], ...] = ()`), so existing code and tests keep working and a typo is caught. The name `extras` above only describes the idea.
+- **Archive instead of delete.** A component or lab idea that is built but not used moves to `build_and_test\\lab\\_archive\\<name>\\`, in the same folder shape as a lab idea, with an index line saying what it was and why it was shelved. It stays out of `bgtools\\`, so it is not shipped, not in `docs\\MAP.md` and not run by the app tests. A `restore` command would copy it back into the lab to be checked again.
 
 ## v2.1.0 - 2026-10-03
 
