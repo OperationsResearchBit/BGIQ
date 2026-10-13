@@ -16,6 +16,7 @@ from bgtools import __version__
 from bgtools.commands import COMMANDS, MENU_LABELS, command, discover
 from bgtools.core import paths
 from bgtools.file_adapters.cards_hsjson import HearthstoneJsonCards
+from bgtools.file_adapters.comps_txt import TextCompsStore
 from bgtools.file_adapters.log_replay import ReplayLog
 from bgtools.file_adapters.log_tail import LogTail, default_logs_dir, newest_log
 from bgtools.file_adapters.stores_json import JsonHistoryStore
@@ -91,9 +92,12 @@ def cmd_track(args) -> None:
         log = LogTail(path)
     else:
         log = LogTail(path, follow_dir=args.logs_dir)
+    comps_store = TextCompsStore(paths.comps_file())
+    comps_store.create_template()
     live_tracker.run(cards, TextTargetsStore(paths.targets_file()),
                      JsonHistoryStore(paths.history_file()), log,
-                     show_text=args.text, debug=args.debug, follow=not args.replay)
+                     show_text=args.text, debug=args.debug, follow=not args.replay,
+                     comps_store=comps_store)
 
 
 @command("minions", "browse minions", _configure_minions)
