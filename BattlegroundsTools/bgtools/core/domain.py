@@ -69,6 +69,11 @@ class Minion:
     text: str = ""
     golden: bool = False
     known: bool = True            # False when the card id is not in the card data
+    taunt: bool = False           # keyword flags, read from the log's entity tags
+    shield: bool = False          # Divine Shield
+    venomous: bool = False
+    reborn: bool = False
+    windfury: bool = False
 
 
 @dataclass(frozen=True)
@@ -114,6 +119,7 @@ class GameRecord:
     minions: int
     placement: Optional[int]
     turns: int
+    races: Tuple[Tuple[str, int], ...] = ()   # types on your final board (type, count)
 
     def to_dict(self) -> Dict[str, object]:
         return asdict(self)
@@ -133,6 +139,73 @@ class MatchPanel:
 
 
 @dataclass(frozen=True)
+class Tempo:
+    """How your tavern tier compares with a typical curve for this turn."""
+    verdict: str      # "behind", "on pace" or "ahead"
+    low: int          # typical tier range for this turn
+    high: int
+
+
+@dataclass(frozen=True)
+class Performance:
+    """Your results over the saved games. Placement 1 is best."""
+    games: int                                # games with a known placement
+    average: float
+    top4: float                               # share of games, 0..1
+    wins: float
+    blowups: float                            # share of 7th and 8th places
+    distribution: Tuple[int, ...]             # games per placement, index 0 = 1st
+    trend: Tuple[int, ...]                    # placements, oldest first (recent games)
+    recent_n: int
+    recent_average: Optional[float]           # None until there are enough games
+    cold_streak: bool                         # recent games clearly worse than usual
+    by_build: Tuple[Tuple[str, int, float], ...]   # (build, games, average), best first
+
+
+@dataclass(frozen=True)
+class Lobby:
+    """Which minion types are in this lobby, worked out from the taverns you have seen."""
+    seen: Tuple[str, ...]        # types seen in a tavern
+    out: Tuple[str, ...]         # types that are out (certain) or probably out
+    complete: bool               # True when every lobby type has been seen, so `out` is certain
+    sightings: int               # tavern minions with a type that were counted
+
+
+@dataclass(frozen=True)
+class Hero:
+    name: str
+    health: Optional[int]        # health + armor, None if it cannot be read
+    place: Optional[int]
+
+
+@dataclass(frozen=True)
+class Odds:
+    """Estimated result of the fight under way (see analysis/combat_odds.py)."""
+    win: float
+    tie: float
+    loss: float
+    unmodeled: int               # minions with a card effect the estimate does not model
+    current: bool = True         # False once that fight is over and the shop is open
+
+
+@dataclass(frozen=True)
+class Comp:
+    """A build you want to play, from comps.txt."""
+    name: str
+    tribe: str
+    core: Tuple[str, ...]        # card names, as written
+    note: str = ""
+
+
+@dataclass(frozen=True)
+class CompMatch:
+    comp: Comp
+    have: Tuple[str, ...]        # core cards on your board or in your hand
+    missing: Tuple[str, ...]
+    in_tavern: Tuple[str, ...]   # missing cards that are in the tavern right now
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """Everything the screen needs for one frame. UI pieces are functions of this."""
     status: Status
@@ -146,3 +219,10 @@ class Snapshot:
     triple_here: Optional[Tuple[str, ...]]  # your targets at this tier; None if tier unknown
     match: Optional[MatchPanel] = None
     debug: Tuple[str, ...] = ()
+    tempo: Optional[Tempo] = None
+    pairs: Tuple[Tuple[str, int], ...] = ()   # cards you hold 2+ copies of
+    lobby: Optional[Lobby] = None
+    hero: Optional[Hero] = None
+    next_opponent: Optional[Hero] = None
+    odds: Optional[Odds] = None
+    comps: Tuple[CompMatch, ...] = ()

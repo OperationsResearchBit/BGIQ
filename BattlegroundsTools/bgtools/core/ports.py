@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Dict, Iterator, List, Mapping, Optional, Protocol, Tuple
 
-from bgtools.core.domain import Card, Minion
+from bgtools.core.domain import Card, Comp, Minion
 
 # lowercase card name -> (card name as written, your reason)
 TargetMap = Mapping[str, Tuple[str, str]]
@@ -38,3 +38,7 @@ class TargetsStore(Protocol):
     def load(self) -> TargetMap: ...
     def read_entries(self) -> Tuple[List[str], List[Tuple[str, str]]]: ...
     def write_entries(self, header: List[str], entries: List[Tuple[str, str]]) -> None: ...
+
+
+class CompsStore(Protocol):
+    def load(self) -> List[Comp]: ...

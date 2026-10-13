@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
-from bgtools.core.domain import (Card, GameRecord, Minion, Status, clean_text,
+from bgtools.core.domain import (Card, GameRecord, Hero, Minion, Status, clean_text,
                                  to_int)
 
 GAME_ID = -1  # internal key for the GameEntity
@@ -43,6 +43,11 @@ def describe(entity: dict, by_id: Dict[str, Card]) -> Minion:
         races=card.races,
         text=clean_text(card.text),
         golden=t.get("PREMIUM") == "1" or card.is_golden,
+        taunt=t.get("TAUNT") == "1",
+        shield=t.get("DIVINE_SHIELD") == "1",
+        venomous=t.get("VENOMOUS") == "1" or t.get("POISONOUS") == "1",
+        reborn=t.get("REBORN") == "1",
+        windfury=t.get("WINDFURY") == "1",
     )
 
 
@@ -59,7 +64,7 @@ class State:
         self.ents: Dict[int, dict] = {}
         self.pents: Dict[int, int] = {}  # player id -> player entity id
         self.cur: Optional[int] = None
-        self.samples: List[tuple] = []   # (atk, hp, minions) of your board, once per turn change
+        self.samples: List[tuple] = []   # (atk, hp, minions, races) of your board, once per turn change
         self.complete: Optional[GameRecord] = None  # summary of the finished game, once it ends
 
     def ent(self, i: int) -> dict:
@@ -155,12 +160,15 @@ class State:
             if not ents:
                 return
             atk = hp = 0
+            races: Dict[str, int] = {}
             for e in ents:
                 d = describe(e, self.by_id)
                 if d.known:
                     atk += to_int(d.atk) or 0
                     hp += to_int(d.hp) or 0
-            self.samples.append((atk, hp, len(ents)))
+                    for r in d.races:
+                        races[r] = races.get(r, 0) + 1
+            self.samples.append((atk, hp, len(ents), tuple(sorted(races.items()))))
         except Exception:
             pass
 
@@ -181,12 +189,12 @@ class State:
             self.sample_board()
             if not self.samples or self.complete is not None:
                 return
-            atk, hp, n = self.samples[-1]
+            atk, hp, n, races = self.samples[-1]
             me = self.controller_of(PLAYER_CARD)
             self.complete = GameRecord(key=f"{self.path}:{self.game_no}",
                                        total=atk + hp, atk=atk, hp=hp, minions=n,
                                        placement=self.placement(me),
-                                       turns=len(self.samples))
+                                       turns=len(self.samples), races=races)
             self.finished.append(self.complete)
         except Exception:
             pass
@@ -217,6 +225,67 @@ class State:
                     and card is not None and card.kind == "MINION"):
                 out.append((int(t.get("ZONE_POSITION", 0) or 0), e))
         return [e for _, e in sorted(out, key=lambda x: x[0])]
+
+    def seen_races(self, ctrl: Optional[str]) -> Dict[str, int]:
+        """Minion types of every minion the shop (`ctrl`) has shown this game.
+
+        Entities stay in the log after a reroll, so this counts rerolled-away minions too.
+        Minions that count as every type ("All") are left out: they say nothing about the lobby.
+        """
+        out: Dict[str, int] = {}
+        if ctrl is None:
+            return out
+        for e in self.ents.values():
+            card = self.by_id.get(e["card"])
+            if card is None or card.kind != "MINION" or e["tags"].get("CONTROLLER") != ctrl:
+                continue
+            for r in card.races:
+                if r != "All":
+                    out[r] = out.get(r, 0) + 1
+        return out
+
+    def all_tribes(self) -> tuple:
+        """Every minion type that exists on a Battlegrounds minion card (cached)."""
+        if getattr(self, "_tribes", None) is None:
+            found = set()
+            for c in self.by_id.values():
+                if c.kind == "MINION" and c.tier is not None and c.has_golden and not c.is_golden:
+                    found.update(r for r in c.races if r != "All")
+            self._tribes = tuple(sorted(found))
+        return self._tribes
+
+    def _hero_view(self, e: dict) -> Hero:
+        t = e["tags"]
+        card = self.by_id.get(e["card"])
+        health = to_int(t.get("HEALTH"))
+        if health is not None:
+            health = health - (to_int(t.get("DAMAGE")) or 0) + (to_int(t.get("ARMOR")) or 0)
+        return Hero(name=card.name if card else (e["card"] or "?"), health=health,
+                    place=to_int(t.get("PLAYER_LEADERBOARD_PLACE")))
+
+    def hero(self, me: Optional[str]) -> Optional[Hero]:
+        """Your hero: health (with armor) and leaderboard place."""
+        for e in self.ents.values():
+            t = e["tags"]
+            if (t.get("CARDTYPE") == "HERO" and t.get("CONTROLLER") == me
+                    and t.get("ZONE") == "PLAY" and me is not None):
+                return self._hero_view(e)
+        return None
+
+    def next_opponent(self, me: Optional[str]) -> Optional[Hero]:
+        """The hero you fight next, found through your player's NEXT_OPPONENT_PLAYER_ID."""
+        pid = self.player_tags(me).get("NEXT_OPPONENT_PLAYER_ID")
+        if not pid or pid == "0":
+            return None
+        by_player = [e for e in self.ents.values()
+                     if e["tags"].get("CARDTYPE") == "HERO" and e["tags"].get("PLAYER_ID") == pid]
+        by_ctrl = [e for e in self.ents.values()
+                   if e["tags"].get("CARDTYPE") == "HERO" and e["tags"].get("CONTROLLER") == pid
+                   and pid != me]
+        for group in (by_player, by_ctrl):
+            if group:
+                return self._hero_view(group[0])
+        return None
 
     def minion_views(self, ctrl: Optional[str], zone: str) -> List[Minion]:
         return [describe(e, self.by_id) for e in self.minions(ctrl, zone)]

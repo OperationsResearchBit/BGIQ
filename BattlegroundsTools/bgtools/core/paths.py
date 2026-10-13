@@ -26,6 +26,10 @@ def targets_file() -> Path:
     return data_dir() / "triple_targets.txt"
 
 
+def comps_file() -> Path:
+    return data_dir() / "comps.txt"
+
+
 def history_file() -> Path:
     return data_dir() / "history.json"
 
