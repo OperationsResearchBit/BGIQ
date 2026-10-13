@@ -1,0 +1,6 @@
+# Comps: builds you want to play. One per line, as:
+#   Comp name | Tribe | Core card, Core card, Core card | optional note
+# Lines starting with # are ignored. Card names must match the game's names
+# (run  python -m bgtools comps  to check them). Update this after every patch.
+# Example (replace with comps from the current patch):
+# Beast tempo | Beast | Card A, Card B, Card C | keep two beasts for the buff
