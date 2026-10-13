@@ -9,7 +9,7 @@ from bgtools.ui import bgui
 
 
 def _mark_text(mark: Mark) -> str:
-    return bgui.c(mark.text, bgui.STYLE["mark_triple" if mark.kind == "triple" else "mark_fit"])
+    return bgui.c(mark.text, bgui.STYLE.get("mark_" + mark.kind, bgui.STYLE["mark_fit"]))
 
 
 def section(title: str, minions: Sequence[Minion], color: str,

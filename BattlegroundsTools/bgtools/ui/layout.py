@@ -6,8 +6,9 @@ from typing import List
 
 from bgtools.core.domain import Snapshot
 from bgtools.ui import bgui
-from bgtools.ui.components import (board_line, debug_footer, match_panel, section,
-                                   status_line, triple_line)
+from bgtools.ui.components import (board_line, comps_line, debug_footer, hero_line,
+                                   lobby_line, match_panel, pairs_line, section, status_line,
+                                   triple_line)
 
 TIERS_OF_DETAIL = ((False, 0), (False, 1), (False, 2), (False, 3))
 
@@ -20,9 +21,10 @@ def _build(snap: Snapshot, show_text: bool, level: int) -> List[str]:
         lines = [bgui.tracker_banner(), ""]
     else:
         lines = [bgui.c(bgui.TRACKER_TITLE, bgui.STYLE["title"])]
-    lines += status_line(snap) + board_line(snap)
+    lines += status_line(snap) + hero_line(snap) + board_line(snap)
     match = match_panel(snap)
-    lines += triple_line(snap) + gap + (match + gap if match else [])
+    lines += (triple_line(snap) + pairs_line(snap) + comps_line(snap) + lobby_line(snap)
+              + gap) + (match + gap if match else [])
     lines += section("TAVERN", snap.tavern, sec["TAVERN"], snap.marks, show_text)
     s = snap.strength
     note = f"{s.atk} atk + {s.hp} hp = {s.total}"
@@ -35,7 +37,9 @@ def _build(snap: Snapshot, show_text: bool, level: int) -> List[str]:
     if level < 2 and footer:
         lines += [""] + footer
     lines += gap + [bgui.c(bgui.QUIT_HINT, bgui.STYLE["dim"])]
-    return lines
+    # The banner is one list item but three screen lines; count real lines, or the screen
+    # is taller than the window, scrolls, and leaves a stack of old banners behind.
+    return "\n".join(lines).split("\n")
 
 
 def render_screen(snap: Snapshot, show_text: bool = False, rows: int = 40) -> str:

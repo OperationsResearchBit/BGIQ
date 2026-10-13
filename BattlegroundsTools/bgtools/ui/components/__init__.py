@@ -9,15 +9,20 @@ New pieces start in ui/sandbox/ and move here when they are ready.
 from bgtools.ui.components.debug_footer import debug_footer
 from bgtools.ui.components.match_panel import match_panel
 from bgtools.ui.components.minion_list import section
-from bgtools.ui.components.status import board_line, status_line, triple_line
+from bgtools.ui.components.status import (board_line, comps_line, hero_line, lobby_line,
+                                          pairs_line, status_line, triple_line)
 
 REGISTRY = {
     "status_line": status_line,
     "board_line": board_line,
     "triple_line": triple_line,
+    "pairs_line": pairs_line,
+    "lobby_line": lobby_line,
+    "hero_line": hero_line,
+    "comps_line": comps_line,
     "match_panel": match_panel,
     "debug_footer": debug_footer,
 }
 
-__all__ = ["REGISTRY", "board_line", "debug_footer", "match_panel", "section",
-           "status_line", "triple_line"]
+__all__ = ["REGISTRY", "board_line", "comps_line", "debug_footer", "hero_line", "lobby_line",
+           "match_panel", "pairs_line", "section", "status_line", "triple_line"]

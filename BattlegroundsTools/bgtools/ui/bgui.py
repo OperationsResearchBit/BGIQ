@@ -125,6 +125,10 @@ STYLE = {
     "match_compare": "96",
     "mark_triple": "1;93",
     "mark_fit": "92",
+    "mark_comp": "1;96",
+    "hero_ok": "92",
+    "hero_warn": "93",
+    "hero_danger": "1;91",
 }
 
 # Section header colors on the tracker screen.

@@ -4,8 +4,9 @@
 
 from typing import Optional
 
-from bgtools.core.domain import (Comparison, GameRecord, Mark, MatchPanel, Minion,
-                                 Profile, Snapshot, Status, Strength)
+from bgtools.core.domain import (Comp, CompMatch, Comparison, GameRecord, Hero, Lobby, Mark,
+                                 MatchPanel, Minion, Profile, Snapshot, Status, Strength,
+                                 Tempo)
 from bgtools.ui.components import REGISTRY
 from bgtools.ui.layout import render_screen
 
@@ -18,7 +19,7 @@ def fake_snapshot() -> Snapshot:
               m("Pack Leader", 3, 3, 3, ["Beast"]))
     board = (m("Rat Pack", 2, 2, 2, ["Beast"]), m("Mama Bear", 4, 4, 5, ["Beast"], golden=True),
              m("Zesty Shaker", 3, 3, 2, ["Elemental"]))
-    hand = (m("Tabbycat", 2, 2, 1, ["Beast"]),)
+    hand = (m("Tabbycat", 2, 2, 1, ["Beast"]), m("Rat Pack", 2, 2, 2, ["Beast"]))
     # Hand-made values: the UI layer never imports the analysis layer.
     profile = Profile(counts=(("Beast", 2), ("Elemental", 1)), wild=0, size=3,
                       main="Beast", label="Leaning Beast")
@@ -30,7 +31,13 @@ def fake_snapshot() -> Snapshot:
         marks=marks, strength=Strength(9, 9),
         targets_listed=True, triple_here=("Pack Leader",),
         match=MatchPanel(rec, Comparison(count=0, average=None, diff=None)),
-        debug=("demo data, not a real game",))
+        debug=("demo data, not a real game",),
+        tempo=Tempo("on pace", 4, 4), pairs=(("Rat Pack", 2),),
+        lobby=Lobby(("Beast", "Demon", "Elemental", "Mechanical", "Undead"),
+                    ("Dragon", "Murloc", "Naga", "Pirate", "Quilboar"), True, 31),
+        hero=Hero("Demo Hero", 27, 3), next_opponent=Hero("Rival Hero", 19, 5),
+        comps=(CompMatch(Comp("Beast tempo", "Beast", ("Rat Pack", "Mama Bear", "Pack Leader")),
+                         ("Rat Pack", "Mama Bear"), ("Pack Leader",), ("Pack Leader",)),))
 
 
 def run(name: Optional[str] = None, rows: int = 40) -> int:
