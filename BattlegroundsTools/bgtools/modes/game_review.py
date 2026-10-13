@@ -5,10 +5,17 @@
 from datetime import datetime
 from typing import List, Optional
 
+from bgtools.analysis.board_type import build_profile
 from bgtools.analysis.stats import compare_to_history
 from bgtools.core.domain import HISTORY_KEEP, MatchPanel
 from bgtools.core.game_state import State
 from bgtools.core.ports import HistoryStore
+
+
+def _build_name(races, size: int) -> str:
+    """The main type of your final board ("Beast"), or "Mixed" when there is none."""
+    per_minion = [[r] for r, n in races for _ in range(n)]
+    return build_profile(per_minion, size).main or "Mixed"
 
 
 def record_finished(state: State, history: List[dict], store: HistoryStore) -> None:
@@ -17,6 +24,7 @@ def record_finished(state: State, history: List[dict], store: HistoryStore) -> N
     for rec in state.finished:
         if rec.key not in keys:
             row = rec.to_dict()
+            row["build"] = _build_name(row.pop("races", ()), rec.minions)
             row["saved"] = datetime.now().isoformat(timespec="seconds")
             history.append(row)
             keys.add(rec.key)

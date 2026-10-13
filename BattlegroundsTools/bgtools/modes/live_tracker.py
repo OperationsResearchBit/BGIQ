@@ -5,14 +5,23 @@
 import shutil
 import sys
 import time
-from typing import List, Optional
+from dataclasses import replace
+from pathlib import Path
+from typing import List, Optional, Sequence
 
 from bgtools.analysis.board_type import build_profile
+from bgtools.analysis.combat_odds import odds_for
+from bgtools.analysis.comps import match_comps, needed_cards, SHOW_TOP
+from bgtools.analysis.lobby import infer_lobby
+from bgtools.analysis.pairs import find_pairs
 from bgtools.analysis.recommender import pick_marks
 from bgtools.analysis.stats import board_strength
-from bgtools.core.domain import Snapshot, to_int
+from bgtools.analysis.tempo import tempo
+from bgtools.core import paths
+from bgtools.core.domain import Comp, Odds, Snapshot, to_int
 from bgtools.core.game_state import BOB_CARD, PLAYER_CARD, State
-from bgtools.core.ports import CardSource, HistoryStore, LogSource, TargetMap, TargetsStore
+from bgtools.core.ports import (CardSource, CompsStore, HistoryStore, LogSource, TargetMap,
+                                TargetsStore)
 from bgtools.modes.game_review import build_match_panel, record_finished
 from bgtools.ui import bgui
 from bgtools.ui.layout import render_screen
@@ -34,12 +43,68 @@ def _debug_lines(state: State, bob, me, history: List[dict]) -> tuple:
             f"TECH={p.get('PLAYER_TECH_LEVEL')} RES={p.get('RESOURCES')} "
             f"USED={p.get('RESOURCES_USED')} TEMP={p.get('TEMP_RESOURCES')} "
             f"player_entity={state.pents.get(to_int(me))}",
+            f"hero={state.hero(me)} next_opp_id={p.get('NEXT_OPPONENT_PLAYER_ID')} "
+            f"next_opp={state.next_opponent(me)}",
+            f"shop types seen -> {state.seen_races(bob) or 'none'}",
+            f"combat odds: STEP={state.game_tags().get('STEP')} memo={_odds_memo}",
             f"history={len(history)} games, samples={len(state.samples)}, "
             f"complete={'yes' if state.complete else 'no'}")
 
 
+_odds_memo = {"key": None, "size": 0, "odds": None}
+
+
+def _odds_log(key, memo) -> None:
+    """With --debug: append a line to data/combat_odds_log.txt when this combat's steps, board
+    sizes or estimate change (the footer redraws too fast to read)."""
+    sig = (key, tuple(memo["steps"]), memo["seen"], memo["odds"] is not None)
+    if memo.get("logged") == sig:
+        return
+    memo["logged"] = sig
+    o = memo["odds"]
+    got = "none" if o is None else f"win {o.win:.0%} tie {o.tie:.0%} loss {o.loss:.0%}"
+    try:
+        path = Path(paths.data_dir()) / "combat_odds_log.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} game,turn={key} steps={memo['steps']} "
+                    f"seen(you,opp)={memo['seen']} odds={got}\n")
+    except OSError:
+        pass
+
+
+def _combat_odds(state: State, board, opp_board, debug: bool = False) -> Optional[Odds]:
+    """Win/tie/lose estimate for the fight under way, or None during the shop phase.
+
+    Even TURN values are combat (seen in a real log: the shop controller holds the opponent's
+    board from MAIN_START to MAIN_END). The boards fill in over a few log lines and shrink as
+    minions die, so the estimate is redone only while the two boards are still growing, then
+    kept until the turn ends.
+    """
+    turn = to_int(state.game_tags().get("TURN"))
+    if not turn or turn % 2:          # shop phase: keep showing the fight just played
+        got, k = _odds_memo["odds"], _odds_memo["key"]
+        return replace(got, current=False) if got and k and k[0] == state.game_no else None
+    key, memo = (state.game_no, turn), _odds_memo
+    if memo["key"] != key:
+        memo.update(key=key, size=0, odds=None, steps=[], seen=(0, 0))
+    size = len(board) + len(opp_board)
+    step = state.game_tags().get("STEP")      # debug trail: why was no estimate made?
+    if step not in memo["steps"]:
+        memo["steps"].append(step)
+    memo["seen"] = (len(board), len(opp_board))
+    if state.game_tags().get("STEP") == "MAIN_START" and size > memo["size"]:
+        got = odds_for(board, opp_board)
+        if got is not None:
+            memo.update(size=size, odds=Odds(*got))
+    if debug:
+        _odds_log(key, memo)
+    return memo["odds"]
+
+
 def build_snapshot(state: State, targets: TargetMap, tiers: dict,
-                   history: List[dict], debug: bool = False) -> Snapshot:
+                   history: List[dict], debug: bool = False,
+                   comps: Sequence[Comp] = ()) -> Snapshot:
     """Turn the current game state into one frame of data for the screen."""
     bob = state.controller_of(BOB_CARD)
     me = state.controller_of(PLAYER_CARD)
@@ -49,7 +114,10 @@ def build_snapshot(state: State, targets: TargetMap, tiers: dict,
     status = state.status(me)
 
     profile = build_profile([m.races for m in board if m.known], len(board))
-    marks = pick_marks(tavern, profile.main, targets)
+    pairs = find_pairs(list(board) + list(hand))
+    matches = match_comps(comps, board, hand, tavern)
+    marks = pick_marks(tavern, profile.main, targets, pairs, needed_cards(matches))
+    lobby = infer_lobby(state.seen_races(bob), state.all_tribes())
     triple_here = None
     if status.tier is not None:
         triple_here = tuple(v[0] for k, v in targets.items() if tiers.get(k) == status.tier)
@@ -58,12 +126,17 @@ def build_snapshot(state: State, targets: TargetMap, tiers: dict,
         hand=tuple(hand), marks=marks, strength=board_strength(board),
         targets_listed=bool(targets), triple_here=triple_here,
         match=build_match_panel(state, history),
+        tempo=tempo(status.turn, status.tier), pairs=pairs, lobby=lobby,
+        hero=state.hero(me), next_opponent=state.next_opponent(me), comps=matches[:SHOW_TOP],
+        odds=_combat_odds(state, board, tavern, debug),
         debug=_debug_lines(state, bob, me, history) if debug else ())
 
 
 def run(cards: CardSource, targets: TargetsStore, history_store: HistoryStore,
         log: LogSource, show_text: bool = False, debug: bool = False,
-        follow: bool = True, out=None) -> None:
+        follow: bool = True, out=None, comps_store: Optional[CompsStore] = None,
+        render=None) -> None:
+    """`render(snap, show_text, rows) -> str` replaces the full screen (default: `render_screen`)."""
     out = out or sys.stdout
     by_id = cards.by_id()
     tiers = cards.tier_by_name()
@@ -88,8 +161,9 @@ def run(cards: CardSource, targets: TargetsStore, history_store: HistoryStore,
             if rows != last_rows:
                 last_rows, last_shown = rows, None
                 out.write(bgui.CLEAR_ALL)
-            snap = build_snapshot(state, targets.load(), tiers, history, debug)
-            text = render_screen(snap, show_text, rows)
+            snap = build_snapshot(state, targets.load(), tiers, history, debug,
+                                  comps_store.load() if comps_store else ())
+            text = (render or render_screen)(snap, show_text, rows)
             if text != last_shown:
                 out.write(bgui.frame(text))
                 out.flush()
