@@ -5,7 +5,7 @@
 from typing import List
 
 from bgtools.core.domain import Snapshot
-from bgtools.ui import bgui
+from bgtools.ui import bgui, odds_view
 
 
 TIER_MAX = 6      # the tier bar has one pip per tier up to here (T7 is a rare extra pip)
@@ -99,9 +99,10 @@ def hero_line(snap: Snapshot) -> List[str]:
     o = snap.odds
     if o is not None:   # own line: a long hero line gets clipped by narrow windows
         est = (bgui.c("Estimate: " if o.current else "Last fight: ", bgui.STYLE["dim"])
-               + bgui.c(f"win {o.win:.0%}  tie {o.tie:.0%}  loss {o.loss:.0%}", bgui.STYLE["status"]))
+               + bgui.c(f"win {o.win:.0%}  tie {o.tie:.0%}  lose {o.loss:.0%}", bgui.STYLE["status"]))
         if o.unmodeled:
-            est += bgui.c(f"  ({o.unmodeled} effects not modeled)", bgui.STYLE["dim"])
+            est += bgui.c("  (" + odds_view.note_line(o.unmodeled, o.total) + ")",
+                          bgui.STYLE["dim"])
         lines.append(est)
     return lines
 

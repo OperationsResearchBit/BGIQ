@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from simcore import Fighter, estimate, simulate          # noqa: E402
-from simcore import parse_board                          # noqa: E402
+from simcore.preview import parse_board                  # noqa: E402
 
 
 def win_tie_loss(you, opp):

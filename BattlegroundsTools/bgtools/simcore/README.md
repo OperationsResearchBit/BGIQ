@@ -1,17 +1,22 @@
 # simcore
 
 Win / tie / loss odds for two Battlegrounds boards, keywords only (taunt, Divine Shield, venomous,
-reborn, windfury). Standard library only: it imports nothing from the rest of bgtools.
+reborn, windfury). Standard library only: it imports nothing from the rest of the app.
 
-    from bgtools.simcore import Fighter, estimate
-    odds = estimate([Fighter(5, 5)], [Fighter(3, 3)])    # .win .tie .loss .unmodeled .method .runs
+**Put it here:** copy the `simcore` folder into `bgtools\bgtools\`, next to `file_adapters`, and put
+`simpreview.bat` in the same place.
 
-Exact odds when the fight is small, otherwise simulated fights (fixed seed, so the same boards give the
-same numbers). Card effects (deathrattles, start of combat, buffs) are not modeled; `unmodeled` counts
-the minions that have one. No damage to the hero yet.
+**Try it** (double-click `simpreview.bat`, or from a terminal):
 
-Try it without the rest of the app:
+    simpreview.bat --you "5/5 taunt, 3/2 shield" --opp "4/4, 2/2 venom"
+    simpreview.bat                       asks for the two boards, blank line to quit
 
-    python bgtools\simcore\preview.py --you "5/5 taunt, 3/2 shield" --opp "4/4, 2/2 venom"
-    python bgtools\simcore\preview.py                 asks for the two boards
-    python bgtools\simcore\test_simcore.py            10 checks
+**Check it:** `python simcore\test_simcore.py` (10 tests, no app needed).
+
+**From code:**
+
+    from simcore import Fighter, estimate
+    odds = estimate([Fighter(5, 5)], [Fighter(3, 3)])    # odds.win, .tie, .loss, .unmodeled, .method
+
+Exact odds when the fight is small, otherwise simulated fights. Card effects (deathrattles, start of
+combat, buffs) are not modeled; `unmodeled` counts the minions that have one. No damage to the hero yet.
