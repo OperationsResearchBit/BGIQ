@@ -6,7 +6,6 @@ import shutil
 import sys
 import time
 from dataclasses import replace
-from pathlib import Path
 from typing import List, Optional, Sequence
 
 from bgtools.analysis.board_type import build_profile
@@ -17,9 +16,9 @@ from bgtools.analysis.pairs import find_pairs
 from bgtools.analysis.recommender import pick_marks
 from bgtools.analysis.stats import board_strength
 from bgtools.analysis.tempo import tempo
-from bgtools.core import paths
 from bgtools.core.domain import Comp, Odds, Snapshot, to_int
 from bgtools.core.game_state import BOB_CARD, PLAYER_CARD, State
+from bgtools.core.paths import app_root
 from bgtools.core.ports import (CardSource, CompsStore, HistoryStore, LogSource, TargetMap,
                                 TargetsStore)
 from bgtools.modes.game_review import build_match_panel, record_finished
@@ -54,26 +53,29 @@ def _debug_lines(state: State, bob, me, history: List[dict]) -> tuple:
 _odds_memo = {"key": None, "size": 0, "odds": None}
 
 
+_log_started = []   # empty until this run writes its first line, which starts the file fresh
+
+
 def _odds_log(key, memo) -> None:
-    """With --debug: append a line to data/combat_odds_log.txt when this combat's steps, board
-    sizes or estimate change (the footer redraws too fast to read)."""
-    sig = (key, tuple(memo["steps"]), memo["seen"], memo["odds"] is not None)
+    """Debug: one line when this combat's steps or estimate change (not on every board-size change).
+    The file starts fresh each run. While there is no estimate, the boards read are logged too."""
+    o = memo["odds"]
+    got = "none" if o is None else f"win {o.win:.0%} tie {o.tie:.0%} lose {o.loss:.0%}"
+    sig = (key, tuple(memo["steps"]), got, memo["seen"] if o is None else None)
     if memo.get("logged") == sig:
         return
     memo["logged"] = sig
-    o = memo["odds"]
-    got = "none" if o is None else f"win {o.win:.0%} tie {o.tie:.0%} loss {o.loss:.0%}"
     try:
-        path = Path(paths.data_dir()) / "combat_odds_log.txt"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a", encoding="utf-8") as f:
+        path = app_root() / "combat_odds_log.txt"     # the .exe's folder when frozen, else the repo root
+        with open(path, "a" if _log_started else "w", encoding="utf-8") as f:
+            _log_started.append(1)
             f.write(f"{time.strftime('%H:%M:%S')} game,turn={key} steps={memo['steps']} "
                     f"seen(you,opp)={memo['seen']} odds={got}\n")
     except OSError:
         pass
 
 
-def _combat_odds(state: State, board, opp_board, debug: bool = False) -> Optional[Odds]:
+def _combat_odds(state: State, board, opp_board) -> Optional[Odds]:
     """Win/tie/lose estimate for the fight under way, or None during the shop phase.
 
     Even TURN values are combat (seen in a real log: the shop controller holds the opponent's
@@ -96,9 +98,8 @@ def _combat_odds(state: State, board, opp_board, debug: bool = False) -> Optiona
     if state.game_tags().get("STEP") == "MAIN_START" and size > memo["size"]:
         got = odds_for(board, opp_board)
         if got is not None:
-            memo.update(size=size, odds=Odds(*got))
-    if debug:
-        _odds_log(key, memo)
+            memo.update(size=size, odds=Odds(*got, total=size))
+    _odds_log(key, memo)
     return memo["odds"]
 
 
@@ -128,15 +129,24 @@ def build_snapshot(state: State, targets: TargetMap, tiers: dict,
         match=build_match_panel(state, history),
         tempo=tempo(status.turn, status.tier), pairs=pairs, lobby=lobby,
         hero=state.hero(me), next_opponent=state.next_opponent(me), comps=matches[:SHOW_TOP],
-        odds=_combat_odds(state, board, tavern, debug),
+        odds=_combat_odds(state, board, tavern),
         debug=_debug_lines(state, bob, me, history) if debug else ())
+
+
+def _observe_combat(state: State) -> None:
+    """Work out the combat estimate from the boards as they stand after this log line."""
+    g = state.game_tags()
+    turn = to_int(g.get("TURN"))
+    if not turn or turn % 2 or g.get("STEP") != "MAIN_START":
+        return                       # cheap exit: only the start of a combat turn matters
+    bob, me = state.controller_of(BOB_CARD), state.controller_of(PLAYER_CARD)
+    _combat_odds(state, state.minion_views(me, "PLAY"), state.minion_views(bob, "PLAY"))
 
 
 def run(cards: CardSource, targets: TargetsStore, history_store: HistoryStore,
         log: LogSource, show_text: bool = False, debug: bool = False,
         follow: bool = True, out=None, comps_store: Optional[CompsStore] = None,
-        render=None) -> None:
-    """`render(snap, show_text, rows) -> str` replaces the full screen (default: `render_screen`)."""
+        render=render_screen) -> None:
     out = out or sys.stdout
     by_id = cards.by_id()
     tiers = cards.tier_by_name()
@@ -152,6 +162,8 @@ def run(cards: CardSource, targets: TargetsStore, history_store: HistoryStore,
         while True:
             for line in log.lines():
                 state.feed(line)
+                if "ZONE" in line or "STEP" in line:
+                    _observe_combat(state)
                 if state.finished:
                     record_finished(state, history, history_store)
                 count += 1
@@ -163,7 +175,7 @@ def run(cards: CardSource, targets: TargetsStore, history_store: HistoryStore,
                 out.write(bgui.CLEAR_ALL)
             snap = build_snapshot(state, targets.load(), tiers, history, debug,
                                   comps_store.load() if comps_store else ())
-            text = (render or render_screen)(snap, show_text, rows)
+            text = render(snap, show_text, rows)
             if text != last_shown:
                 out.write(bgui.frame(text))
                 out.flush()
