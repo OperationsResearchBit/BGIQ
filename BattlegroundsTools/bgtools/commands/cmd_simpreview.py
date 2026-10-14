@@ -19,6 +19,7 @@ from bgtools.file_adapters.cards_hsjson import HearthstoneJsonCards
 from bgtools.file_adapters.log_replay import ReplayLog
 from bgtools.file_adapters.log_tail import LogTail, default_logs_dir, newest_log
 from bgtools.modes import live_tracker
+from bgtools.ui import odds_view
 
 
 class _NoHistory:
@@ -36,20 +37,19 @@ class _NoTargets:
         return {}
 
 
-def _numbers(win="0%", tie="0%", loss="0%", mine="0%", theirs="0%") -> str:
-    return f"my lethal {mine}   win {win}   tie {tie}   loss {loss}   opp lethal {theirs}"
-
-
 def render_odds(snap: Snapshot, _show_text: bool = False, _rows: int = 0) -> str:
-    """The whole screen: a status line, then the numbers."""
+    """The whole screen: a status line, the labels, the numbers, and an honest note."""
     o = snap.odds
     if o is None:
-        return "waiting for a fight...   (Ctrl+C to stop)\n" + _numbers()
+        return "\n".join(["waiting for a fight...   (Ctrl+C to stop)"]
+                          + odds_view.odds_rows(color=True))
     head = "fight in progress" if o.current else "last fight"
-    if o.unmodeled:
-        head += f"   ({o.unmodeled} effects not modeled)"
-    return head + "   (Ctrl+C to stop)\n" + _numbers(f"{o.win:.0%}", f"{o.tie:.0%}",
-                                                     f"{o.loss:.0%}", "--", "--")
+    lines = [head + "   (Ctrl+C to stop)"]
+    lines += odds_view.odds_rows(o.win, o.tie, o.loss, color=True)
+    note = odds_view.note_line(o.unmodeled, o.total)
+    if note:
+        lines.append(note)
+    return "\n".join(lines)
 
 
 def _configure(p) -> None:

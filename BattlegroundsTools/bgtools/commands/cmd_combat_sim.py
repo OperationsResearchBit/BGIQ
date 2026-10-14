@@ -2,10 +2,35 @@
 # Copyright (C) 2026 bgtools contributors
 """python -m bgtools combatsim: estimate a fight between two boards you type in."""
 
+import re
 import sys
+from typing import List
 
+from bgtools.simcore import CombatOdds, Fighter, estimate
 from bgtools.commands.registry import command
-from bgtools.simcore import CombatOdds, estimate, parse_board
+
+_FLAGS = {"taunt": "taunt", "shield": "shield", "ds": "shield", "venom": "venomous",
+          "venomous": "venomous", "reborn": "reborn", "windfury": "windfury",
+          "wf": "windfury", "effect": "has_effect"}
+
+
+def parse_board(text: str) -> List[Fighter]:
+    """'5/5 taunt, 3/2 shield venom' -> two Fighters. Raises ValueError on a bad minion."""
+    out = []
+    for part in text.split(","):
+        words = part.split()
+        if not words:
+            continue
+        stats = re.fullmatch(r"(\d+)/(\d+)", words[0])
+        if not stats:
+            raise ValueError(f"expected attack/health like 5/5, got '{words[0]}'")
+        flags = {}
+        for w in words[1:]:
+            if w.lower() not in _FLAGS:
+                raise ValueError(f"unknown keyword '{w}' (use: {', '.join(sorted(_FLAGS))})")
+            flags[_FLAGS[w.lower()]] = True
+        out.append(Fighter(int(stats.group(1)), int(stats.group(2)), **flags))
+    return out
 
 
 def brief(odds: CombatOdds) -> str:
@@ -40,5 +65,5 @@ def cmd_combatsim(args) -> None:
         print("Exact odds (calculated, no sampling error):")
     else:
         print(f"Estimate from {odds.runs} simulated fights:")
-    print(f"  win {odds.win:.0%}   tie {odds.tie:.0%}   loss {odds.loss:.0%}")
+    print(f"  win {odds.win:.0%}   tie {odds.tie:.0%}   lose {odds.loss:.0%}")
     print(f"  Card effects are not modeled ({odds.unmodeled} minion(s) here have one).")

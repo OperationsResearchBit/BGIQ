@@ -186,6 +186,7 @@ class Odds:
     loss: float
     unmodeled: int               # minions with a card effect the estimate does not model
     current: bool = True         # False once that fight is over and the shop is open
+    total: int = 0               # minions on both boards (how many the estimate covers)
 
 
 @dataclass(frozen=True)
