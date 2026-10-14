@@ -6,7 +6,7 @@ Terminal tools for Hearthstone Battlegrounds. Everything uses only the Python st
 |---|---|
 | `python -m bgtools` | Opens the menu (the same menu `run_bgtools.bat` shows). |
 | `python -m bgtools track` | Live tracker. Reads Hearthstone's log while you play and shows your status, board type, the tavern, your board and your hand. Summarizes each finished game. |
-| `python -m bgtools simpreview` | Only the fight odds from your real game: two lines, `my lethal / win / tie / loss / opp lethal`. Double-click `simpreview.bat`. See [Fight odds](#fight-odds). |
+| `python -m bgtools simpreview` | Only the fight odds from your real game: `my lethal / win / tie / loss / opp lethal` in two rows, with colored numbers. Double-click `simpreview.bat`. See [Fight odds](#fight-odds). |
 | `python -m bgtools combatsim` | Type two boards and get win / tie / loss, no game needed. |
 | `python -m bgtools comps` | Checks your `data\comps.txt` against the game's card names. |
 | `python -m bgtools stats` | Your results from saved games: average placement, top-4 rate, recent form, placements by build, cold-streak warning. |
@@ -231,14 +231,16 @@ With `--debug`, the last lines show:
 
 During combat the tracker shows `Estimate: win % tie % loss %` under your hero line, and `Last fight: ...` through the next shop phase. It plays the two boards against each other with the keywords `taunt`, Divine Shield, venomous, reborn and windfury. Small fights are calculated exactly; bigger ones are simulated.
 
-- **`python -m bgtools simpreview`** (or double-click `simpreview.bat`) follows the game like `track` but draws only two lines, and saves nothing of yours:
+- **`python -m bgtools simpreview`** (or double-click `simpreview.bat`) follows the game like `track` but draws only the odds, and saves nothing of yours:
 
   ```
-  waiting for a fight...   (Ctrl+C to stop)
-  my lethal 0%   win 0%   tie 0%   loss 0%   opp lethal 0%
+  fight in progress   (Ctrl+C to stop)
+  my lethal   win    tie    loss   opp lethal
+     --       62%     5%    33%        --
+  2 of 13 minions have effects not modeled · medium confidence
   ```
 
-  A real fight fills in win, tie and loss. Lethal (damage to a hero) is not calculated yet, so it shows `--`. Options: `--log`, `--logs-dir`, `--replay`, `--cards-file`, `--debug`.
+  The labels sit on top and each number is centered under its label. Win is green, tie yellow and loss red; a `0%` or `--` is dim grey, so only real chances light up. Before a fight every number is `--`, and after it the top line says `last fight`. Lethal (damage to a hero) is not calculated yet, so it shows `--`. The last line appears only when the estimate skips something: it counts minions, not effects, and says how far to trust the numbers (high, medium or low confidence). Options: `--log`, `--logs-dir`, `--replay`, `--cards-file`, `--debug`. `simpreview.bat PATH\Power.log` (or dragging a log onto the file) shows the last fight of that log.
 - **`python -m bgtools combatsim --you "5/5 taunt, 3/2 shield" --opp "4/4, 2/2 venom"`** works out a fight between two boards you type in. Keywords: `taunt`, `shield` (`ds`), `venom`, `reborn`, `windfury` (`wf`), `effect`. Add `--brief` for just the likeliest result.
 - **`--debug`** on `track` or `simpreview` also writes `data\combat_odds_log.txt`: one line each time a fight's game steps, board sizes or estimate change. It is there to find out why a fight got no estimate.
 - The calculator is the `bgtools\simcore` folder. It uses only the standard library and imports nothing from the rest of the app.
