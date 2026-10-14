@@ -32,7 +32,6 @@ Imports point inward only. `core` imports nothing from the rest of the package.
 | `commands` | `core`, `analysis`, `file_adapters`, `ui`, `modes`, `simcore` | extra commands, one `cmd_<name>.py` file each, found automatically |
 | `__main__.py`, `menu.py` | everything | the entry point and the menu. Adapters are connected to modes here and in `commands\` |
 
-
 ## How a frame gets on screen
 
 1. `file_adapters\log_tail.py` yields new lines of `Power.log` (any `LogSource`).

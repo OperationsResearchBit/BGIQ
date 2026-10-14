@@ -4,6 +4,18 @@ All notable changes to Battlegrounds Tools (v2). The baseline is the original `b
 
 ## Unreleased
 
+### Added: simpreview screen, v1
+
+- **`simpreview` shows the odds in two rows.** The labels (`my lethal`, `win`, `tie`, `loss`, `opp lethal`) sit on top and each number is centered under its label. Win is green, tie yellow, loss red; a `0%` or `--` is dim grey, so only real chances light up. Lethal stays `--` until lethal chances are calculated.
+- **Honest note under the numbers.** It counts minions, not effects, and says how far to trust the estimate: `2 of 13 minions have effects not modeled · medium confidence`. Nothing skipped means no note (high confidence); fewer than half the minions is medium; half or more is low. The tracker's Estimate line uses the same wording.
+- **`simpreview.bat`** follows your newest `Power.log` live, as before. New: `simpreview.bat PATH\Power.log` (or dragging a log onto the file) shows the last fight of that log and waits, and any other `simpreview` option can be passed through.
+- `Odds` has a new field `total` (minions on both boards). `Odds(*got)` still works.
+
+### Needs a real-log check (simpreview v1)
+
+- The screen was checked on made-up odds in a real terminal (colors and alignment). Watch a real fight with `simpreview.bat` and confirm the numbers and the note.
+- Known, not part of v1: the estimate can still be made while the boards are half read, and a high loss percent is red like any other loss.
+
 ### Added: fight odds
 
 - **Estimate line in the tracker.** During combat: `Estimate: win % tie % loss %`. Through the next shop phase: `Last fight: ...`. Card effects are not modeled and the screen says how many minions have one.
