@@ -4,6 +4,30 @@ All notable changes to Battlegrounds Tools (v2). The baseline is the original `b
 
 ## Unreleased
 
+### Added: buyingdelta v2 (hero damage, lethal, summon deathrattles)
+
+- **Hero damage and lethal.** `simcore` now works out the damage each win or loss deals to a hero: the winner's tavern tier plus the tiers of its minions left standing. `simpreview` shows `my lethal` (green) and `opp lethal` (red) as the chance the fight takes that hero to 0, and a line `average hero damage: you deal N, you take N`. Both show `--` when a hero's health or tavern tier is not in the log.
+- **Summon deathrattles are played.** "Deathrattle: Summon a 2/2 ..." and "Summon N random Tier T minions" now run in the fight, in Battlegrounds order (attacking side first, left to right), with the 7-minion limit. Other effects still count as not modeled. A fight with a deathrattle is simulated (1000 runs), never solved exactly.
+- **`bgtools/buydelta/` folder** holds buy_delta (`delta.py`, `field.py`, `shop.py`, `preview.py`). New `buydeltapreview` command and `buydeltapreview.bat` (try buy_delta on boards you type in), and `buydelta.bat` at the repo root for the live tavern screen.
+- Code: `analysis/buy_delta*.py` moved to `buydelta/`; `analysis/combat_odds.py` has `fight_for`, `parse_effects`; `Odds` has `my_lethal`, `opp_lethal`, `avg_deal`, `avg_take`; `CombatOdds` has `deal`, `take`, `p_kill`, `p_die`, `avg_deal`, `avg_take`; `Fighter` has `tier`, `deathrattle`.
+
+### Added: buy_delta on a full board (v2 lab, 2026-10-21)
+
+- **Full board is priced, not skipped.** With seven minions, one must be sold: the result reads `swap N` (N = board position, 1 = leftmost) instead of `board full`. Only the weakest `SWAP_TRIES` (3) minions by attack + health are tried as the one to replace. The gold from selling is not counted. `describe` and `buy_delta_view.token` print `swap N`.
+- **Faster shop table.** The no-purchase score is worked out once per opposing board (`base_score`, `field_bases`) and reused for every shop minion (`base=` / `bases=` arguments). `ShopTable.get(..., first=[card ids])` prices the three minions in the shop right now before the rest; the tracker passes them.
+- **Faster again (2026-10-21).** `EXACT_MAX` 12 to 11 (no wasted exact tries on a full board vs 5 minions), `TARGET_SE` 0.015 to 0.02 (sampling stops sooner), and `parse_effects` is cached (`lru_cache`). On a 3-case benchmark (7, 6 and 4 minions, 4 shop minions each) 2.8 s became 0.8 s; values moved by at most 2 points (e.g. 42 to 44), inside sampling noise. v2 buydelta tests pass (41).
+- **Sampling.** Fights above `EXACT_MAX` (11) minions skip the exact solver. Sampled fights run in batches of `BATCH` (100) and stop once the score is steady (`MIN_RUNS` 200, `TARGET_SE` 1.5 points). A sampled change under `NOISE_FLOOR` (3 points) shows as 0.
+
+### Fixed: zeros on a full board (2026-10-21)
+
+- **Cause.** The number was `win + tie/2` after the buy minus before. A full board is usually your strongest, and the typical opponent boards are printed stats only, so you already win close to 100% and no buy could raise it: every shop minion read `0%`. The per-board noise floor made it worse by cutting small real gains to 0 before the 12 boards were averaged.
+- **Hero damage is the fallback.** When the win chance reads 0 and the average hero damage (dealt minus taken) does not, the row shows `+N dmg` instead of `0%`. The unit travels with the number (`Result.unit`, `BuyDelta.unit`), so a value never changes meaning silently. Needs both hero tiers: yours (`status.tier`) and the opponent's (the pace-range middle for typical boards, `field.field_tier`; the best minion's tier for a board you fought, a guess).
+- **Best slot** is chosen by win score, but scores above 98% (`SATURATED`) count as equal and are separated by hero damage.
+- **Noise floor applied once, to the mean.** `buy_delta_vs_field` averages the unrounded changes, then rounds; the floor shrinks with the square root of the number of boards (`to_result(change, boards=n)`).
+- **Sampling keeps the damage** (it was dropped before), and `ShopTable` keys on the opponent tier too.
+- **Code shape.** `delta.py` is three layers: `evaluate/estimate` (one fight) -> `compare` (one buy, unrounded `Change`) -> `buy_delta/to_result` (rounding, floor, unit). `Result` is a NamedTuple `(value, slot, state, unit="%")`; `Base` became `Outcome`. Callers that unpacked three values now unpack four or use the names.
+- 12 new tests (53 in all): damage fallback, tier plumbing, floor shrinking, damage averaging, `field_tier`.
+
 ### Added: simpreview screen, v1
 
 - **`simpreview` shows the odds in two rows.** The labels (`my lethal`, `win`, `tie`, `loss`, `opp lethal`) sit on top and each number is centered under its label. Win is green, tie yellow, loss red; a `0%` or `--` is dim grey, so only real chances light up. Lethal stays `--` until lethal chances are calculated.

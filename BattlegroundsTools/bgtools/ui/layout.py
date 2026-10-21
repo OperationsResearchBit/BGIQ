@@ -5,7 +5,7 @@
 from typing import List
 
 from bgtools.core.domain import Snapshot
-from bgtools.ui import bgui
+from bgtools.ui import bgui, buy_delta_view
 from bgtools.ui.components import (board_line, comps_line, debug_footer, hero_line,
                                    lobby_line, match_panel, pairs_line, section, status_line,
                                    triple_line)
@@ -25,7 +25,8 @@ def _build(snap: Snapshot, show_text: bool, level: int) -> List[str]:
     match = match_panel(snap)
     lines += (triple_line(snap) + pairs_line(snap) + comps_line(snap) + lobby_line(snap)
               + gap) + (match + gap if match else [])
-    lines += section("TAVERN", snap.tavern, sec["TAVERN"], snap.marks, show_text)
+    lines += section("TAVERN", snap.tavern, sec["TAVERN"], snap.marks, show_text,
+                     note=buy_delta_view.label(snap.buy_note), deltas=snap.buy_deltas)
     s = snap.strength
     note = f"{s.atk} atk + {s.hp} hp = {s.total}"
     lines += gap + section("YOUR BOARD", snap.board, sec["YOUR BOARD"], None, show_text, note)

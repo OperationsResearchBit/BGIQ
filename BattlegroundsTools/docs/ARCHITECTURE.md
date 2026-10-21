@@ -24,12 +24,13 @@ Imports point inward only. `core` imports nothing from the rest of the package.
 | Folder | May import from | What it holds |
 |---|---|---|
 | `core` | standard library only | data types, the contracts (`ports.py`), the log-driven game state, file locations |
-| `simcore` | standard library only | the fight calculator: win / tie / loss for two boards, no other bgtools code |
+| `simcore` | standard library only | the fight calculator: win / tie / loss, hero damage and summon deathrattles for two boards, no other bgtools code |
 | `analysis` | `core`, `simcore` | board strength, board type, advice rules, minion search |
+| `adapter_buy_delta` | `core`, `simcore`, `analysis` | the buy_delta feature: the number, the typical-board version, the per-shop table, the typed-board preview |
 | `file_adapters` | `core` | reading the game log, card data, saving your history and triple targets |
 | `ui` | `core` | styling (`bgui.py`), screen pieces (`components\`), window fitting (`layout.py`), experiments (`sandbox\`) |
-| `modes` | `core`, `analysis`, `ui` | what the tool does: live tracker, game review, minion browser, triple-target editor |
-| `commands` | `core`, `analysis`, `file_adapters`, `ui`, `modes`, `simcore` | extra commands, one `cmd_<name>.py` file each, found automatically |
+| `modes` | `core`, `analysis`, `adapter_buy_delta`, `ui` | what the tool does: live tracker, game review, minion browser, triple-target editor |
+| `commands` | `core`, `analysis`, `adapter_buy_delta`, `file_adapters`, `ui`, `modes`, `simcore` | extra commands, one `cmd_<name>.py` file each, found automatically |
 | `__main__.py`, `menu.py` | everything | the entry point and the menu. Adapters are connected to modes here and in `commands\` |
 
 ## How a frame gets on screen

@@ -7,7 +7,7 @@ Follows Power.log like `track`, but draws two lines and touches none of your sav
     waiting for a fight...   (Ctrl+C to stop)
     my lethal 0%   win 0%   tie 0%   loss 0%   opp lethal 0%
 
-Lethal (damage to a hero) is not calculated yet, so a real fight shows `--` for both lethal values.
+Lethal is the chance the fight takes a hero to 0. It shows `--` when the hero's health or tavern tier is not in the log.
 """
 
 import sys
@@ -45,7 +45,11 @@ def render_odds(snap: Snapshot, _show_text: bool = False, _rows: int = 0) -> str
                           + odds_view.odds_rows(color=True))
     head = "fight in progress" if o.current else "last fight"
     lines = [head + "   (Ctrl+C to stop)"]
-    lines += odds_view.odds_rows(o.win, o.tie, o.loss, color=True)
+    lines += odds_view.odds_rows(o.win, o.tie, o.loss, odds_view._pct(o.my_lethal),
+                                 odds_view._pct(o.opp_lethal), color=True)
+    damage = odds_view.damage_line(o.avg_deal, o.avg_take)
+    if damage:
+        lines.append(damage)
     note = odds_view.note_line(o.unmodeled, o.total)
     if note:
         lines.append(note)

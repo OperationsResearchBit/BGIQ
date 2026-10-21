@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import html
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 Number = Union[int, str]  # a stat from the log, or "?" when it can't be read
@@ -187,6 +187,10 @@ class Odds:
     unmodeled: int               # minions with a card effect the estimate does not model
     current: bool = True         # False once that fight is over and the shop is open
     total: int = 0               # minions on both boards (how many the estimate covers)
+    my_lethal: Optional[float] = None    # chance this fight takes the opponent's hero to 0; None if unknown
+    opp_lethal: Optional[float] = None   # chance it takes yours to 0; None if unknown
+    avg_deal: Optional[float] = None     # hero damage you deal / take, averaged over every outcome
+    avg_take: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -204,6 +208,15 @@ class CompMatch:
     have: Tuple[str, ...]        # core cards on your board or in your hand
     missing: Tuple[str, ...]
     in_tavern: Tuple[str, ...]   # missing cards that are in the tavern right now
+
+
+@dataclass(frozen=True)
+class BuyDelta:
+    """What adding one tavern minion would do to your next fight (see adapter_buy_delta/delta.py)."""
+    value: Optional[int]         # whole percent points of win chance (a tie counts half), or of hero damage; None if no number
+    slot: Optional[str]          # "front", "middle", "back", or "swap N" on a full board
+    state: str                   # "ok", "rough" or "unmodeled"
+    unit: str = "%"              # "%" win chance; "dmg" hero damage (shown when the win chance cannot move)
 
 
 @dataclass(frozen=True)
@@ -227,3 +240,5 @@ class Snapshot:
     next_opponent: Optional[Hero] = None
     odds: Optional[Odds] = None
     comps: Tuple[CompMatch, ...] = ()
+    buy_deltas: Dict[int, BuyDelta] = field(default_factory=dict)   # tavern position (0-based)
+    buy_note: str = ""                                              # "vs <hero>'s last board"

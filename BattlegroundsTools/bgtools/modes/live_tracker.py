@@ -9,16 +9,19 @@ from dataclasses import replace
 from typing import List, Optional, Sequence
 
 from bgtools.analysis.board_type import build_profile
-from bgtools.analysis.combat_odds import odds_for
+from bgtools.adapter_buy_delta.delta import buy_delta
+from bgtools.analysis.combat_odds import fight_for
+from bgtools.adapter_buy_delta.field import field_boards, field_note, field_tier
+from bgtools.adapter_buy_delta.shop import ShopTable, possible_minions
 from bgtools.analysis.comps import match_comps, needed_cards, SHOW_TOP
 from bgtools.analysis.lobby import infer_lobby
 from bgtools.analysis.pairs import find_pairs
 from bgtools.analysis.recommender import pick_marks
 from bgtools.analysis.stats import board_strength
 from bgtools.analysis.tempo import tempo
-from bgtools.core.domain import Comp, Odds, Snapshot, to_int
+from bgtools.core.domain import BuyDelta, Comp, Odds, Snapshot, to_int
 from bgtools.core.game_state import BOB_CARD, PLAYER_CARD, State
-from bgtools.core.paths import app_root
+from bgtools.core.paths import data_dir
 from bgtools.core.ports import (CardSource, CompsStore, HistoryStore, LogSource, TargetMap,
                                 TargetsStore)
 from bgtools.modes.game_review import build_match_panel, record_finished
@@ -46,11 +49,94 @@ def _debug_lines(state: State, bob, me, history: List[dict]) -> tuple:
             f"next_opp={state.next_opponent(me)}",
             f"shop types seen -> {state.seen_races(bob) or 'none'}",
             f"combat odds: STEP={state.game_tags().get('STEP')} memo={_odds_memo}",
+            _buy_debug(state, me),
             f"history={len(history)} games, samples={len(state.samples)}, "
             f"complete={'yes' if state.complete else 'no'}")
 
 
 _odds_memo = {"key": None, "size": 0, "odds": None}
+
+# buy_delta: the board each hero last fielded against you, and who you meet next.
+_seen = {"game": None, "next": None, "shop_key": None, "boards": {}}   # boards: hero -> (turn, board)
+_buy_memo = {"key": None, "out": {}}
+_pool = {"minions": None}                          # every card, set in run()
+_shop = ShopTable()                                # values for each possible shop minion, per board state
+_field = {"turn": None, "boards": []}              # typical opponent boards for this game turn
+SHOP_BUDGET_S = 0.5                                # seconds of simulation per redraw; the rest follows
+
+
+def _fresh(state: State) -> None:
+    if _seen["game"] != state.game_no:
+        _seen.update(game=state.game_no, next=None, shop_key=None, boards={})
+
+
+def _note_next_opponent(state: State, turn: int, step) -> None:
+    """Shop phase: remember who you fight next. Once per (turn, step), so replaying a log is cheap."""
+    _fresh(state)
+    if _seen["shop_key"] == (turn, step):
+        return
+    _seen["shop_key"] = (turn, step)
+    hero = state.next_opponent(state.controller_of(PLAYER_CARD))
+    if hero is not None:
+        _seen["next"] = hero.name
+
+
+def _file_opponent_board(state: State, turn: int, opp) -> None:
+    """Combat start: file the opponent's board under the hero noted in the shop phase. Boards fill in
+    over a few log lines, so keep the biggest one seen this turn."""
+    _fresh(state)
+    name = _seen["next"]
+    if not name or not opp:
+        return
+    old = _seen["boards"].get(name)
+    if old is None or old[0] != turn or len(opp) > len(old[1]):
+        _seen["boards"][name] = (turn, list(opp))
+
+
+def _field_deltas(state: State, me, board, tavern, turn: int):
+    """Before any board is known: your board against typical boards for this turn (see PRECOMBAT.md).
+    Done once per board state for every minion that could appear, so a reroll only looks values up."""
+    pool, status = _pool["minions"], state.status(me)
+    if not pool or status.tier is None:
+        return {}, ""
+    lobby = infer_lobby(state.seen_races(state.controller_of(BOB_CARD)), state.all_tribes())
+    possible = possible_minions(pool, status.tier, lobby.out if lobby else ())
+    if _field["turn"] != turn:
+        _field.update(turn=turn, boards=field_boards(pool, turn))
+    table = _shop.get(board, possible, _field["boards"], turn, status.tier, budget_s=SHOP_BUDGET_S,
+                     first=[m.card_id for m in tavern], opp_tier=field_tier(turn))
+    out = {n: BuyDelta(*table[m.card_id]) for n, m in enumerate(tavern)
+           if m.card_id in table and table[m.card_id][2] != "none"}
+    return out, field_note(turn)
+
+
+def _buy_deltas(state: State, me, board, tavern):
+    """({tavern position: BuyDelta}, label) in the shop phase; ({}, "") otherwise."""
+    turn = to_int(state.game_tags().get("TURN"))
+    if not turn or turn % 2 == 0 or not tavern:
+        return {}, ""
+    hero = state.next_opponent(me)
+    seen = _seen["boards"].get(hero.name) if hero is not None and _seen["game"] == state.game_no else None
+    if seen is None:
+        return _field_deltas(state, me, board, tavern, (turn + 1) // 2)
+    you_tier = state.status(me).tier or 0
+    opp_tier = max((to_int(getattr(m, "tier", 0)) or 0 for m in seen[1]), default=0)   # a guess: its best minion
+    key = (state.game_no, turn, hero.name, tuple(board), tuple(seen[1]), tuple(tavern), you_tier)
+    if _buy_memo["key"] != key:
+        out = {}
+        for n, m in enumerate(tavern):
+            got = buy_delta(board, seen[1], m, you_tier=you_tier, opp_tier=opp_tier)
+            if got is not None:
+                out[n] = BuyDelta(*got)
+        _buy_memo.update(key=key, out=out)
+    return _buy_memo["out"], f"vs {hero.name}'s last board (turn {(seen[0] + 1) // 2})"
+
+
+def _buy_debug(state: State, me) -> str:
+    """Debug footer: your board and the boards filed per hero, as (attack, health)."""
+    boards = {k: (v[0], [(m.atk, m.hp) for m in v[1]]) for k, v in _seen["boards"].items()}
+    mine = [(m.atk, m.hp) for m in state.minion_views(me, "PLAY")]
+    return f"buy_delta: next={_seen['next']} you={mine} filed={boards}"
 
 
 _log_started = []   # empty until this run writes its first line, which starts the file fresh
@@ -66,13 +152,21 @@ def _odds_log(key, memo) -> None:
         return
     memo["logged"] = sig
     try:
-        path = app_root() / "combat_odds_log.txt"     # the .exe's folder when frozen, else the repo root
+        path = data_dir() / "combat_odds_log.txt"     # the .exe's folder when frozen, else the repo root
         with open(path, "a" if _log_started else "w", encoding="utf-8") as f:
             _log_started.append(1)
             f.write(f"{time.strftime('%H:%M:%S')} game,turn={key} steps={memo['steps']} "
                     f"seen(you,opp)={memo['seen']} odds={got}\n")
     except OSError:
         pass
+
+
+def _opp_tier(state: State, me) -> int:
+    """The tavern tier of the hero you are fighting, or 0 when the log does not show it."""
+    pid = state.player_tags(me).get("NEXT_OPPONENT_PLAYER_ID")
+    if not pid or pid == "0":
+        return 0
+    return to_int(state.player_tags(pid).get("PLAYER_TECH_LEVEL")) or 0
 
 
 def _combat_odds(state: State, board, opp_board) -> Optional[Odds]:
@@ -96,9 +190,17 @@ def _combat_odds(state: State, board, opp_board) -> Optional[Odds]:
         memo["steps"].append(step)
     memo["seen"] = (len(board), len(opp_board))
     if state.game_tags().get("STEP") == "MAIN_START" and size > memo["size"]:
-        got = odds_for(board, opp_board)
+        me = state.controller_of(PLAYER_CARD)
+        mine, theirs = state.hero(me), state.next_opponent(me)
+        opp_tier = _opp_tier(state, me)
+        got = fight_for(board, opp_board, you_tier=state.status(me).tier or 0, opp_tier=opp_tier,
+                        pool=_pool["minions"])
         if got is not None:
-            memo.update(size=size, odds=Odds(*got, total=size))
+            memo.update(size=size, odds=Odds(
+                got.win, got.tie, got.loss, got.unmodeled, total=size,
+                my_lethal=got.p_kill(theirs.health if theirs else None),
+                opp_lethal=got.p_die(mine.health if mine else None),
+                avg_deal=got.avg_deal(), avg_take=got.avg_take()))
     _odds_log(key, memo)
     return memo["odds"]
 
@@ -119,6 +221,7 @@ def build_snapshot(state: State, targets: TargetMap, tiers: dict,
     matches = match_comps(comps, board, hand, tavern)
     marks = pick_marks(tavern, profile.main, targets, pairs, needed_cards(matches))
     lobby = infer_lobby(state.seen_races(bob), state.all_tribes())
+    deltas, buy_note = _buy_deltas(state, me, board, tavern)
     triple_here = None
     if status.tier is not None:
         triple_here = tuple(v[0] for k, v in targets.items() if tiers.get(k) == status.tier)
@@ -129,7 +232,7 @@ def build_snapshot(state: State, targets: TargetMap, tiers: dict,
         match=build_match_panel(state, history),
         tempo=tempo(status.turn, status.tier), pairs=pairs, lobby=lobby,
         hero=state.hero(me), next_opponent=state.next_opponent(me), comps=matches[:SHOW_TOP],
-        odds=_combat_odds(state, board, tavern),
+        odds=_combat_odds(state, board, tavern), buy_deltas=deltas, buy_note=buy_note,
         debug=_debug_lines(state, bob, me, history) if debug else ())
 
 
@@ -137,10 +240,14 @@ def _observe_combat(state: State) -> None:
     """Work out the combat estimate from the boards as they stand after this log line."""
     g = state.game_tags()
     turn = to_int(g.get("TURN"))
+    if turn and turn % 2:
+        _note_next_opponent(state, turn, g.get("STEP"))
     if not turn or turn % 2 or g.get("STEP") != "MAIN_START":
         return                       # cheap exit: only the start of a combat turn matters
     bob, me = state.controller_of(BOB_CARD), state.controller_of(PLAYER_CARD)
-    _combat_odds(state, state.minion_views(me, "PLAY"), state.minion_views(bob, "PLAY"))
+    board, opp = state.minion_views(me, "PLAY"), state.minion_views(bob, "PLAY")
+    _file_opponent_board(state, turn, opp)
+    _combat_odds(state, board, opp)
 
 
 def run(cards: CardSource, targets: TargetsStore, history_store: HistoryStore,
@@ -149,6 +256,10 @@ def run(cards: CardSource, targets: TargetsStore, history_store: HistoryStore,
         render=render_screen) -> None:
     out = out or sys.stdout
     by_id = cards.by_id()
+    try:
+        _pool["minions"] = cards.minions()
+    except Exception:
+        pass                      # no card pool: buy_delta stays off
     tiers = cards.tier_by_name()
     state = State(by_id)
     state.path = log.path

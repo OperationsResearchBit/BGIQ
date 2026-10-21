@@ -7,6 +7,7 @@ Terminal tools for Hearthstone Battlegrounds. Everything uses only the Python st
 | `python -m bgtools` | Opens the menu (the same menu `run_bgtools.bat` shows). |
 | `python -m bgtools track` | Live tracker. Reads Hearthstone's log while you play and shows your status, board type, the tavern, your board and your hand. Summarizes each finished game. |
 | `python -m bgtools simpreview` | Only the fight odds from your real game: `my lethal / win / tie / loss / opp lethal` in two rows, with colored numbers. Double-click `simpreview.bat`. See [Fight odds](#fight-odds). |
+| `python -m bgtools buydeltapreview` | Try the buy_delta number on boards you type in, no game needed. Double-click `buydeltapreview.bat` for examples, or `buydeltapreview.bat --you "3/3" --opp "4/4" --shop "2/2, 5/5"`. `--turn N` uses typical boards for that turn instead of `--opp`. |
 | `python -m bgtools combatsim` | Type two boards and get win / tie / loss, no game needed. |
 | `python -m bgtools comps` | Checks your `data\comps.txt` against the game's card names. |
 | `python -m bgtools stats` | Your results from saved games: average placement, top-4 rate, recent form, placements by build, cold-streak warning. |
@@ -20,7 +21,7 @@ The tools use colors, box lines and a colored badge for each tavern tier (T1 to 
 
 ```
 bgtools\
-  README.md   run_bgtools.bat   simpreview.bat
+  README.md   run_bgtools.bat   simpreview.bat   buydelta.bat   buydeltapreview.bat
   pyproject.toml   .gitignore
   docs\          LICENSE   CHANGELOG.md   ARCHITECTURE.md
   data\          triple_targets.txt (yours)   history.json (created by the tracker)
@@ -236,16 +237,17 @@ During combat the tracker shows `Estimate: win % tie % loss %` under your hero l
   ```
   fight in progress   (Ctrl+C to stop)
   my lethal   win    tie    loss   opp lethal
-     --       62%     5%    33%        --
+    40%      62%     5%    33%        9%
+  average hero damage: you deal 6, you take 3
   2 of 13 minions have effects not modeled · medium confidence
   ```
 
-  The labels sit on top and each number is centered under its label. Win is green, tie yellow and loss red; a `0%` or `--` is dim grey, so only real chances light up. Before a fight every number is `--`, and after it the top line says `last fight`. Lethal (damage to a hero) is not calculated yet, so it shows `--`. The last line appears only when the estimate skips something: it counts minions, not effects, and says how far to trust the numbers (high, medium or low confidence). Options: `--log`, `--logs-dir`, `--replay`, `--cards-file`, `--debug`. `simpreview.bat PATH\Power.log` (or dragging a log onto the file) shows the last fight of that log.
+  The labels sit on top and each number is centered under its label. Win is green, tie yellow and loss red; a `0%` or `--` is dim grey, so only real chances light up. Before a fight every number is `--`, and after it the top line says `last fight`. Lethal is the chance the fight takes a hero to 0: your chance to kill them in green, theirs to kill you in red. It is worked out from each hero's health plus armor and tavern tier (a win deals the winner's tier plus the tiers of its minions left standing) and shows `--` when the log does not give one of them. The line under the numbers is the average hero damage each way. The last line appears only when the estimate skips something: it counts minions, not effects, and says how far to trust the numbers (high, medium or low confidence). Options: `--log`, `--logs-dir`, `--replay`, `--cards-file`, `--debug`. `simpreview.bat PATH\Power.log` (or dragging a log onto the file) shows the last fight of that log.
 - **`python -m bgtools combatsim --you "5/5 taunt, 3/2 shield" --opp "4/4, 2/2 venom"`** works out a fight between two boards you type in. Keywords: `taunt`, `shield` (`ds`), `venom`, `reborn`, `windfury` (`wf`), `effect`. Add `--brief` for just the likeliest result.
 - **`--debug`** on `track` or `simpreview` also writes `data\combat_odds_log.txt`: one line each time a fight's game steps, board sizes or estimate change. It is there to find out why a fight got no estimate.
 - The calculator is the `bgtools\simcore` folder. It uses only the standard library and imports nothing from the rest of the app.
 
-Limits: card effects (deathrattles, start of combat, buffs) are not modeled; the screen says how many minions have one. The estimate is only made at the log's `MAIN_START` step, and that timing has not been confirmed on a real game yet.
+Limits: deathrattles that summon minions are played (including "summon a random Tier N minion"); other card effects (deathrattles that deal damage or buff, start of combat, buffs) are not modeled; the screen says how many minions have one. The estimate is only made at the log's `MAIN_START` step, and that timing has not been confirmed on a real game yet.
 
 ## Known limits
 

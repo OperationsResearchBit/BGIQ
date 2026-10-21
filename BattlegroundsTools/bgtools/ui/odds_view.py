@@ -12,6 +12,7 @@ LABELS = ("my lethal", "win", "tie", "loss", "opp lethal")
 _WIDTHS = (9, 4, 4, 4, 10)          # wide enough for "100%" and for the longest label
 _GAP = "   "
 _COLOR = {"win": "1;92", "tie": "1;93", "loss": "1;91"}
+_LETHAL_COLOR = ("1;92", "1;91")      # my lethal is good news (green), the opponent's is bad (red)
 _DIM = "90"
 
 
@@ -30,9 +31,12 @@ def odds_rows(win: Optional[float] = None, tie: Optional[float] = None,
     values = (mine, _pct(win), _pct(tie), _pct(loss), theirs)
     names = ("lethal", "win", "tie", "loss", "lethal")
     top, bottom = [], []
-    for label, value, name, width in zip(LABELS, values, names, _WIDTHS):
+    for n, (label, value, name, width) in enumerate(zip(LABELS, values, names, _WIDTHS)):
         top.append(_dress(_center(label, width).ljust(width), _DIM, color))
-        shade = _DIM if value in ("--", "0%") or name == "lethal" else _COLOR[name]
+        if value in ("--", "0%"):
+            shade = _DIM
+        else:
+            shade = _LETHAL_COLOR[n // 4] if name == "lethal" else _COLOR[name]
         bottom.append(_dress(_center(value, width).ljust(width), shade, color))
     return [_GAP.join(top).rstrip(), _GAP.join(bottom).rstrip()]
 
@@ -42,6 +46,16 @@ def _dress(text: str, code: str, color: bool) -> str:
         return text
     from bgtools.ui import bgui          # only when drawing in color
     return bgui.c(text, code)
+
+
+def damage_line(avg_deal: Optional[float], avg_take: Optional[float]) -> str:
+    """'average hero damage: you deal 6, you take 3', or '' when neither can be worked out."""
+    parts = []
+    if avg_deal is not None:
+        parts.append(f"you deal {avg_deal:.0f}")
+    if avg_take is not None:
+        parts.append(f"you take {avg_take:.0f}")
+    return "average hero damage: " + ", ".join(parts) if parts else ""
 
 
 def effects_note(unmodeled: int, total: int = 0) -> str:
